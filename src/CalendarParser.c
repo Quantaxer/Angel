@@ -1,30 +1,31 @@
-#include "../include/CalendarParser.h"
+#include "CalendarParser.h"
 
 //Helper function to tell what the current item you are reading in is (alarm, event, ical property)
 void updateState(int *event, int *alarm, char *first, char *ptr, Event **evt, Calendar **cal, Alarm **alm) {
     if ((strcmp(first, "BEGIN") == 0) && (strcmp(ptr, "VEVENT") == 0)) {
         //Updates event to be true and creates memory for it
         *evt = malloc(sizeof(Event));
+        (*evt)->properties = initializeList((*printProperty), (*deleteProperty), (*compareProperties));
+        (*evt)->alarms = initializeList((*printAlarm), (*deleteAlarm), (*compareAlarms));
         *event = 1;
     }
     else if ((strcmp(first, "END") == 0) && (strcmp(ptr, "VEVENT") == 0)) {
         //Resets event
-        printf("%s\n", printEvent(*evt));
         *event = 0;
         //Appends event to the iCal list
-        //TODO
+        insertFront((*cal)->events, *evt);
     }
     else if ((strcmp(first, "BEGIN") == 0) && (strcmp(ptr, "VALARM") == 0)) {
         //Updates alarm to be true
         *alm = malloc(sizeof(Alarm));
+        (*alm)->properties = initializeList((*printProperty), (*deleteProperty), (*compareProperties));
         *alarm = 1;
     }
     else if ((strcmp(first, "END") == 0) && (strcmp(ptr, "VALARM") == 0)) {
         //Resets alarm
-        printf("%s\n", printAlarm(*alm));
         *alarm = 0;
-        //Appends current alarm to the iCal list
-        //TODO
+        //Appends current alarm to the event list
+        insertFront((*evt)->alarms, *alm);
     }
 }
 
@@ -45,7 +46,7 @@ void createDate(char *ptr, DateTime **dt) {
 }
 
 //Helper function to add a new event
-void addToEvent(char *first, char *ptr, Calendar **obj, Event **evt) {
+void addToEvent(char *first, char *ptr, Calendar **obj, Event **evt, int unfolded) {
     //Adds the UID property to the struct
     if (strcmp(first, "UID") == 0) {
         strcpy((*evt)->UID, ptr);
@@ -55,55 +56,57 @@ void addToEvent(char *first, char *ptr, Calendar **obj, Event **evt) {
         DateTime *dt =  malloc(sizeof(DateTime));
         createDate(ptr, &dt);
         (*evt)->startDateTime = *dt;
-        //Testing print
-        printf("%s\n", printDate(&(*evt)->startDateTime));
+        free(dt);
     }
     //Creates a new DateTime struct and appends it to the dateCreated property
     else if (strcmp(first, "DTSTAMP") == 0) {
         DateTime *dt =  malloc(sizeof(DateTime));
         createDate(ptr, &dt);
         (*evt)->creationDateTime = *dt;
-        //Testing print
-        printf("%s\n", printDate(&(*evt)->creationDateTime));
+        free(dt);
     }
     //Adds the rest of the properties into the misc category
     else if (strcmp(first, "BEGIN") != 0) {
         if (strcmp(first, "END") != 0) {
             //Create a new property struct, append the values and place it into the list
-            Property *prop = malloc(sizeof(Property) + strlen(ptr) * sizeof(char));
+            Property *prop = malloc(sizeof(Property) + (strlen(ptr) + 1) * sizeof(char));
             strcpy(prop->propName, first);
             strcpy(prop->propDescr, ptr);
-            printf("%s\n", printProperty(prop));
             //ADD TO EVENT LIST
+            insertFront((*evt)->properties, prop);
         }
     }
 }
 
 //Helper function to add a property to an alarm
-void addToAlarm(char *first, char *ptr, Event **evt, Alarm **alm) {
+void addToAlarm(char *first, char *ptr, Event **evt, Alarm **alm, int unfolded) {
     //Adds an action
     if (strcmp(first, "ACTION") == 0) {
         strcpy((*alm)->action, ptr);
     }
     //Adds a trigger
     else if (strcmp(first, "TRIGGER") == 0) {
-        (*alm)->trigger = malloc(sizeof(char) * strlen(ptr));
+        (*alm)->trigger = malloc((sizeof(char) + 1) * strlen(ptr));
         strcpy((*alm)->trigger, ptr);
     }
     //Adds any other property
     else if (strcmp(first, "BEGIN") != 0) {
         if (strcmp(first, "END") != 0) {
-          Property *prop = malloc(sizeof(Property) + strlen(ptr) * sizeof(char));
+          Property *prop = malloc(sizeof(Property) + (strlen(ptr) + 1) * sizeof(char));
           strcpy(prop->propName, first);
           strcpy(prop->propDescr, ptr);
-          printf("%s\n", printProperty(prop));
           //ADD TO ALARM LIST
+          insertFront((*alm)->properties, prop);
+          /*if (unfolded == 1) {
+              deleteDataFromList((*alm)->properties , getFromFront((*alm)->properties));
+              free(prop);
+          }*/
         }
     }
 }
 
 //Helper function to add a property to the iCal file
-void addToCal(char *first, char *ptr, Calendar **obj) {
+void addToCal(char *first, char *ptr, Calendar **obj, int unfolded) {
     if (strcmp(first, "VERSION") == 0) {
         //TODO: add error checking for duplicates
         (*obj)->version = atof(ptr);
@@ -116,10 +119,11 @@ void addToCal(char *first, char *ptr, Calendar **obj) {
     //Adds anything that isn't begin or end as a property
     else if (strcmp(first, "BEGIN") != 0) {
         if (strcmp(first, "END") != 0) {
-            Property *prop = malloc(sizeof(Property) + strlen(ptr) * sizeof(char));
+            Property *prop = malloc(sizeof(Property) + (strlen(ptr) + 1) * sizeof(char));
             strcpy(prop->propName, first);
             strcpy(prop->propDescr, ptr);
             //ADD TO iCAL LIST
+            insertFront((*obj)->properties, prop);
         }
     }
 }
@@ -136,6 +140,7 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
     int prevCount = 0;
     int isEvent = 0;
     int isAlarm = 0;
+    int isUnfolding = 0;
     //Create an iCal struct
     *obj = malloc(sizeof(Calendar));
     fp = fopen(fileName, "r");
@@ -144,6 +149,9 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
         *obj = NULL;
         return INV_FILE;
     }
+
+    (*obj)->properties = initializeList((*printProperty), (*deleteProperty), (*compareProperties));
+    (*obj)->events = initializeList((*printEvent), (*deleteEvent), (*compareEvents));
 
     //Main loop for reading the file
     while (fgets(line, sizeof(line), fp)) {
@@ -165,6 +173,7 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
             strcpy(prev, temp);
             lineCount++;
             wrapCount++;
+            isUnfolding = 1;
         }
         //If the current line does NOT need unfolding, go here
         else {
@@ -180,20 +189,23 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
 
                 //Determines what state the reading is in, and adds the current lines accordingly
                 if ((isEvent == 0) && (isAlarm == 0)) {
-                    addToCal(otherPrev, ptr, obj);
+                    addToCal(otherPrev, ptr, obj, isUnfolding);
                     //Adds new line to calendar
-                    addToCal(first, x, obj);
+                    addToCal(first, x, obj, isUnfolding);
                 }
                 else if ((isEvent == 1) && (isAlarm == 0)) {
-                    addToEvent(otherPrev, ptr, obj, &evt);
+                    addToEvent(otherPrev, ptr, obj, &evt, isUnfolding);
                     //Adds new line to event
-                    addToEvent(first, x, obj, &evt);
+                    addToEvent(first, x, obj, &evt, isUnfolding);
                 }
                 else if ((isEvent == 1) && (isAlarm == 1)) {
-                    addToAlarm(otherPrev, ptr, &evt, &alm);
+                  //This removes the temp node, but creates a memory leak for not freeing
+                    //deleteDataFromList(alm->properties, getFromFront(alm->properties));
+                    addToAlarm(otherPrev, ptr, &evt, &alm, isUnfolding);
                     //Adds new line to calendar
-                    addToAlarm(first, x, &evt, &alm);
+                    addToAlarm(first, x, &evt, &alm, isUnfolding);
                 }
+                isUnfolding = 0;
             }
             //If no unfolding occurred, go here
             else {
@@ -207,13 +219,13 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
                 updateState(&isEvent, &isAlarm, first, ptr, &evt, obj, &alm);
                 //Determine what state the program is in
                 if ((isEvent == 0) && (isAlarm == 0)) {
-                    addToCal(first, ptr, obj);
+                    addToCal(first, ptr, obj, isUnfolding);
                 }
                 else if ((isEvent == 1) && (isAlarm == 0)) {
-                    addToEvent(first, ptr, obj, &evt);
+                    addToEvent(first, ptr, obj, &evt, isUnfolding);
                 }
                 else if ((isEvent == 1) && (isAlarm == 1)) {
-                    addToAlarm(first, ptr, &evt, &alm);
+                    addToAlarm(first, ptr, &evt, &alm, isUnfolding);
                 }
             }
 
@@ -232,6 +244,10 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
 
     //Error checking occurs here
     //Checks if last line is correct
+    /*if (strcmp(toString((*obj)->events), "") == 0) {
+      *obj = NULL;
+      return INV_VER;
+    }*/
     if ((strcmp(first, "END") != 0) || (strcmp(ptr, "VCALENDAR") != 0)) {
         *obj = NULL;
         return INV_VER;
@@ -252,25 +268,28 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
 
 void deleteCalendar(Calendar* obj) {
     //need to free: list of events (call delete event), list of properties
+    freeList(obj->events);
+    freeList(obj->properties);
     free(obj);
 }
 
 char* printCalendar(const Calendar* obj) {
     char *str;
     char version[4];
-    str = malloc(12*sizeof(char));
+    char *temp = toString(obj->properties);
+    char *eventTemp = toString(obj->events);
+    str = malloc((49 + strlen(obj->prodID) + strlen(temp) + strlen(eventTemp)) *sizeof(char));
     strcpy(str, "Version: ");
-
-    str = realloc(str, (strlen(str) + 4) * sizeof(char));
     snprintf(version, sizeof(str), "%.1f", obj->version);
     strcat(str, version);
-
-    str = realloc(str, (strlen(str) + 9) * sizeof(char));
     strcat(str, " ProdID: ");
-
-    str = realloc(str, (strlen(str) + strlen(obj->prodID) + 1) * sizeof(char));
     strcat(str, obj->prodID);
-
+    strcat(str, "\niCal Properties: ");
+    strcat(str, temp);
+    strcat(str, "\nEvents: ");
+    strcat(str, eventTemp);
+    free(temp);
+    free(eventTemp);
     return str;
 }
 
@@ -278,9 +297,25 @@ char* printError(ICalErrorCode err) {
     return "hi";
 }
 
+ICalErrorCode writeCalendar(char* fileName, const Calendar* obj) {
+    return OK;
+}
+
+ICalErrorCode validateCalendar(const Calendar* obj) {
+    return OK;
+}
+
 void deleteEvent(void* toBeDeleted){
     //Need to free: List of properties, list of alarms(should call deleteAlarm),
-    //creationdatetime struct, startdatetime struct (free(blahblah->datetime shit))
+    //creationdatetime struct, startdatetime struct
+    Event *evt = (Event*)toBeDeleted;
+    //DateTime *dt = &evt->startDateTime;
+    //Fix this shit
+    //free(&(evt->creationDateTime));
+    freeList(evt->properties);
+    freeList(evt->alarms);
+    //deleteDate(&(evt->creationDateTime));
+    free(toBeDeleted);
 }
 
 int compareEvents(const void* first, const void* second) {
@@ -290,11 +325,34 @@ int compareEvents(const void* first, const void* second) {
 char* printEvent(void* toBePrinted) {
     Event *evt = (Event*)toBePrinted;
     char *str;
+    char *tempCreateDate = printDate(&evt->creationDateTime);
+    char *tempStartDate = printDate(&evt->startDateTime);
+    char *tempAlarm = toString(evt->alarms);
+    char *tempProp = toString(evt->properties);
+    str = malloc(sizeof(char) * (strlen(tempAlarm) + strlen(tempProp) + strlen(evt->UID) + 47 + strlen(tempStartDate) + strlen(tempCreateDate)));
+    strcpy(str, "UID: ");
+    strcat(str, evt->UID);
+    strcat(str, "\nCreation: ");
+    strcat(str, tempCreateDate);
+    strcat(str, "\nStart: ");
+    strcat(str, tempStartDate);
+    strcat(str, "\nProperties: ");
+    strcat(str, tempProp);
+    strcat(str, "\nAlarms: ");
+    strcat(str, tempAlarm);
+    free(tempAlarm);
+    free(tempProp);
+    free(tempStartDate);
+    free(tempCreateDate);
     return str;
 }
 
 void deleteAlarm(void* toBeDeleted) {
     //(need to free: List of properties, trigger char* array)
+    Alarm *alm = (Alarm*)toBeDeleted;
+    freeList(alm->properties);
+    free(alm->trigger);
+    free(toBeDeleted);
 }
 
 int compareAlarms(const void* first, const void* second) {
@@ -304,21 +362,34 @@ int compareAlarms(const void* first, const void* second) {
 char* printAlarm(void* toBePrinted) {
     Alarm *alm = (Alarm*)toBePrinted;
     char *str;
-    str = malloc(sizeof(char) * (strlen(alm->action) + strlen(alm->trigger) + 19));
+    char *tempProp = toString(alm->properties);
+    str = malloc(sizeof(char) * (strlen(alm->action) + strlen(alm->trigger) + strlen(tempProp) + 32));
     strcpy(str, "Action: ");
     strcat(str, alm->action);
     strcat(str, " Trigger: ");
     strcat(str, alm->trigger);
+    strcat(str, "\nProperties: ");
+    strcat(str, tempProp);
+    free(tempProp);
     return str;
 }
 
 void deleteProperty(void* toBeDeleted) {
-    Property *propToPrint = (Property*)toBeDeleted;
     free(toBeDeleted);
 }
 
 int compareProperties(const void* first, const void* second) {
-    return 0;
+    Property *temp1;
+    Property *temp2;
+
+    if (first == NULL || second == NULL){
+  		return 0;
+  	}
+
+    temp1 = (Property*)first;
+    temp2 = (Property*)second;
+
+    return (strcmp(temp1->propName, temp2->propName) && strcmp(temp1->propDescr, temp2->propDescr));
 }
 
 char* printProperty(void* toBePrinted) {
@@ -334,12 +405,11 @@ char* printProperty(void* toBePrinted) {
 }
 
 void deleteDate(void* toBeDeleted) {
-    DateTime *dt = (DateTime*)toBeDeleted;
-    free(dt);
+    free(toBeDeleted);
 }
 
 int compareDates(const void* first, const void* second) {
-  return 0;
+    return 0;
 }
 
 char* printDate(void* toBePrinted) {

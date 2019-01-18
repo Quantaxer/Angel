@@ -1,10 +1,18 @@
-#include "../include/LinkedListAPI.h"
-#include "../include/CalendarParser.h"
+#include "LinkedListAPI.h"
+#include "CalendarParser.h"
 
 //Main loop for testing purposes ONLY, remove when submitting
 int main(void) {
     Calendar *cal;
-    createCalendar("src/test1.ics", &cal);
-    printf("%s", printCalendar(cal));
+    ICalErrorCode err = createCalendar("src/test1.ics", &cal);
+    if (err == OK) {
+      char *printString = printCalendar(cal);
+      printf("%s\n", printString);
+      free(printString);
+      deleteCalendar(cal);
+    }
+    else {
+      printf("%s\n", printError(err));
+    }
     return 0;
 }
