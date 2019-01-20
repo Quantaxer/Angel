@@ -1,3 +1,9 @@
+/*
+  Peter Hudel
+  1012673
+  CIS*2750
+*/
+
 #include "LinkedListAPI.h"
 #include "assert.h"
 

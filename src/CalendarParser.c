@@ -1,7 +1,13 @@
+/*
+  Peter Hudel
+  1012673
+  CIS*2750
+*/
+
 #include "CalendarParser.h"
 
 //Helper function to tell what the current item you are reading in is (alarm, event, ical property)
-void updateState(int *event, int *alarm, char *first, char *ptr, Event **evt, Calendar **cal, Alarm **alm) {
+void updateState(int *event, int *alarm, char *first, char *ptr, Event **evt, Calendar **cal, Alarm **alm, ICalErrorCode *error) {
     if ((strcmp(first, "BEGIN") == 0) && (strcmp(ptr, "VEVENT") == 0)) {
         //Updates event to be true and creates memory for it
         *evt = malloc(sizeof(Event));
@@ -13,7 +19,7 @@ void updateState(int *event, int *alarm, char *first, char *ptr, Event **evt, Ca
         //Resets event
         *event = 0;
         //Appends event to the iCal list
-        insertFront((*cal)->events, *evt);
+        insertBack((*cal)->events, *evt);
     }
     else if ((strcmp(first, "BEGIN") == 0) && (strcmp(ptr, "VALARM") == 0)) {
         //Updates alarm to be true
@@ -24,8 +30,21 @@ void updateState(int *event, int *alarm, char *first, char *ptr, Event **evt, Ca
     else if ((strcmp(first, "END") == 0) && (strcmp(ptr, "VALARM") == 0)) {
         //Resets alarm
         *alarm = 0;
-        //Appends current alarm to the event list
-        insertFront((*evt)->alarms, *alm);
+        //Error checking to see if it is a valid alarm: trigger and action must both exist
+        if ((*alm)->trigger == NULL) {
+            deleteEvent(*evt);
+            deleteAlarm(*alm);
+            *error = INV_ALARM;
+        }
+        else if (strlen((*alm)->action) == 0) {
+            deleteEvent(*evt);
+            deleteAlarm(*alm);
+            *error = INV_ALARM;
+        }
+        else {
+          //Appends current alarm to the event list
+          insertBack((*evt)->alarms, *alm);
+        }
     }
 }
 
@@ -73,7 +92,12 @@ void addToEvent(char *first, char *ptr, Calendar **obj, Event **evt, int unfolde
             strcpy(prop->propName, first);
             strcpy(prop->propDescr, ptr);
             //ADD TO EVENT LIST
-            insertFront((*evt)->properties, prop);
+            if (unfolded == 1) {
+                Property *toDelete = deleteDataFromList((*evt)->properties , getFromBack((*evt)->properties));
+                free(toDelete);
+                //memory leak?
+            }
+            insertBack((*evt)->properties, prop);
         }
     }
 }
@@ -96,25 +120,34 @@ void addToAlarm(char *first, char *ptr, Event **evt, Alarm **alm, int unfolded) 
           strcpy(prop->propName, first);
           strcpy(prop->propDescr, ptr);
           //ADD TO ALARM LIST
-          insertFront((*alm)->properties, prop);
-          /*if (unfolded == 1) {
-              deleteDataFromList((*alm)->properties , getFromFront((*alm)->properties));
-              free(prop);
-          }*/
+          if (unfolded == 1) {
+              Property *toDelete = deleteDataFromList((*alm)->properties , getFromBack((*alm)->properties));
+              free(toDelete);
+              //memory leak?
+          }
+          insertBack((*alm)->properties, prop);
         }
     }
 }
 
 //Helper function to add a property to the iCal file
-void addToCal(char *first, char *ptr, Calendar **obj, int unfolded) {
+void addToCal(char *first, char *ptr, Calendar **obj, int unfolded, ICalErrorCode *err) {
     if (strcmp(first, "VERSION") == 0) {
-        //TODO: add error checking for duplicates
-        (*obj)->version = atof(ptr);
+        if ((*obj)->version == 2.0) {
+            *err = DUP_VER;
+        }
+        else {
+            (*obj)->version = atof(ptr);
+        }
     }
     //Adds the PRODID
     else if (strcmp(first, "PRODID") == 0) {
-        //TODO: add error checking for duplicates
-        strcpy((*obj)->prodID, ptr);
+        if (strlen((*obj)->prodID) != 0) {
+          *err = DUP_PRODID;
+        }
+        else {
+            strcpy((*obj)->prodID, ptr);
+        }
     }
     //Adds anything that isn't begin or end as a property
     else if (strcmp(first, "BEGIN") != 0) {
@@ -123,7 +156,12 @@ void addToCal(char *first, char *ptr, Calendar **obj, int unfolded) {
             strcpy(prop->propName, first);
             strcpy(prop->propDescr, ptr);
             //ADD TO iCAL LIST
-            insertFront((*obj)->properties, prop);
+            if (unfolded == 1) {
+                Property *toDelete = deleteDataFromList((*obj)->properties , getFromBack((*obj)->properties));
+                free(toDelete);
+                //memory leak?
+            }
+            insertBack((*obj)->properties, prop);
         }
     }
 }
@@ -136,8 +174,8 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
     int wrapCount = 1;
     Event *evt;
     Alarm *alm;
+    ICalErrorCode err = OK;
     int lineCount = 0;
-    int prevCount = 0;
     int isEvent = 0;
     int isAlarm = 0;
     int isUnfolding = 0;
@@ -157,58 +195,40 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
     while (fgets(line, sizeof(line), fp)) {
         //Strip new line character from end of fgets
         strtok(line, "\n");
-        //line unfolding
-        //Checks if it is not the first line, and if it has whitespace at the beginning
-        if ((lineCount > 0) && (line[0] == ' ')) {
-            //make temp string
-            char temp[strlen(line) + strlen(prev)];
-            //Append previous part to temp
-            strcpy(temp, prev);
-            //Remove first spaces
-            x = strtok(line, "");
-            memmove(x, x+wrapCount, strlen(x));
-            //Add to end of list
-            strcat(temp, x);
-            //set prev value
-            strcpy(prev, temp);
-            lineCount++;
-            wrapCount++;
-            isUnfolding = 1;
-        }
-        //If the current line does NOT need unfolding, go here
-        else {
-            wrapCount = 1;
-            //Checks if unfolding had just occurred
-            if (lineCount - prevCount > 1) {
-                //seperates first and last part of the line
-                x = strtok(line, ":;");
-                x = strtok(NULL, "");
-                ptr = strtok(prev, "");
-
-                updateState(&isEvent, &isAlarm, first, ptr, &evt, obj, &alm);
-
-                //Determines what state the reading is in, and adds the current lines accordingly
+        //Check for comments
+        if (line[0] != ';') {
+            //line unfolding
+            //Checks if it is not the first line, and if it has whitespace at the beginning
+            if ((lineCount > 0) && (line[0] == ' ')) {
+                //make temp string
+                char temp[strlen(line) + strlen(prev)];
+                //Append previous part to temp
+                strcpy(temp, prev);
+                //Remove first spaces
+                x = strtok(line, "");
+                memmove(x, x+wrapCount, strlen(x));
+                //Add to end of list
+                strcat(temp, x);
+                //set prev value
+                strcpy(prev, temp);
+                lineCount++;
+                wrapCount++;
+                isUnfolding = 1;
                 if ((isEvent == 0) && (isAlarm == 0)) {
-                    addToCal(otherPrev, ptr, obj, isUnfolding);
-                    //Adds new line to calendar
-                    addToCal(first, x, obj, isUnfolding);
+                    addToCal(otherPrev, prev, obj, isUnfolding, &err);
                 }
                 else if ((isEvent == 1) && (isAlarm == 0)) {
-                    addToEvent(otherPrev, ptr, obj, &evt, isUnfolding);
-                    //Adds new line to event
-                    addToEvent(first, x, obj, &evt, isUnfolding);
+                    addToEvent(otherPrev, prev, obj, &evt, isUnfolding);
                 }
                 else if ((isEvent == 1) && (isAlarm == 1)) {
-                  //This removes the temp node, but creates a memory leak for not freeing
-                    //deleteDataFromList(alm->properties, getFromFront(alm->properties));
-                    addToAlarm(otherPrev, ptr, &evt, &alm, isUnfolding);
-                    //Adds new line to calendar
-                    addToAlarm(first, x, &evt, &alm, isUnfolding);
+                    addToAlarm(otherPrev, prev, &evt, &alm, isUnfolding);
                 }
-                isUnfolding = 0;
+
             }
-            //If no unfolding occurred, go here
+            //If the current line does NOT need unfolding, go here
             else {
+                wrapCount = 1;
+                isUnfolding = 0;
                 //Seperate into first and last part of line, and add to calendar
                 ptr = strtok(line, ":;");
                 first = ptr;
@@ -216,49 +236,54 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
                 strcpy(prev, ptr);
                 strcpy(otherPrev, first);
 
-                updateState(&isEvent, &isAlarm, first, ptr, &evt, obj, &alm);
-                //Determine what state the program is in
-                if ((isEvent == 0) && (isAlarm == 0)) {
-                    addToCal(first, ptr, obj, isUnfolding);
+                updateState(&isEvent, &isAlarm, first, ptr, &evt, obj, &alm, &err);
+                if (err == OK) {
+                    //Determine what state the program is in
+                    if ((isEvent == 0) && (isAlarm == 0)) {
+                        addToCal(first, ptr, obj, isUnfolding, &err);
+                    }
+                    else if ((isEvent == 1) && (isAlarm == 0)) {
+                        addToEvent(first, ptr, obj, &evt, isUnfolding);
+                    }
+                    else if ((isEvent == 1) && (isAlarm == 1)) {
+                        addToAlarm(first, ptr, &evt, &alm, isUnfolding);
+                    }
                 }
-                else if ((isEvent == 1) && (isAlarm == 0)) {
-                    addToEvent(first, ptr, obj, &evt, isUnfolding);
-                }
-                else if ((isEvent == 1) && (isAlarm == 1)) {
-                    addToAlarm(first, ptr, &evt, &alm, isUnfolding);
+                else {
+                    fclose(fp);
+                    deleteCalendar(*obj);
+                    *obj = NULL;
+                    return err;
                 }
             }
-
-            //File format error checking
-            if ((lineCount == 0) && ((strcmp(first, "BEGIN") != 0) || (strcmp(ptr, "VCALENDAR") != 0))) {
-                return INV_FILE;
-            }
-
-            //Increment line counters
-            prevCount = lineCount;
-            lineCount++;
         }
+        //File format error checking
+        if ((lineCount == 0) && ((strcmp(first, "BEGIN") != 0) || (strcmp(ptr, "VCALENDAR") != 0))) {
+            return INV_FILE;
+        }
+
+        //Increment line counters
+        lineCount++;
     }
 
     fclose(fp);
 
     //Error checking occurs here
     //Checks if last line is correct
-    /*if (strcmp(toString((*obj)->events), "") == 0) {
-      *obj = NULL;
-      return INV_VER;
-    }*/
     if ((strcmp(first, "END") != 0) || (strcmp(ptr, "VCALENDAR") != 0)) {
+        deleteCalendar(*obj);
         *obj = NULL;
         return INV_VER;
     }
     //Check if it is the correct version/ if it exists
     if ((*obj)->version != 2.0) {
+        deleteCalendar(*obj);
         *obj = NULL;
         return INV_VER;
     }
     //Check if prodID exists
     if (strlen((*obj)->prodID) == 0) {
+        deleteCalendar(*obj);
         *obj = NULL;
         return INV_PRODID;
     }
@@ -309,12 +334,8 @@ void deleteEvent(void* toBeDeleted){
     //Need to free: List of properties, list of alarms(should call deleteAlarm),
     //creationdatetime struct, startdatetime struct
     Event *evt = (Event*)toBeDeleted;
-    //DateTime *dt = &evt->startDateTime;
-    //Fix this shit
-    //free(&(evt->creationDateTime));
     freeList(evt->properties);
     freeList(evt->alarms);
-    //deleteDate(&(evt->creationDateTime));
     free(toBeDeleted);
 }
 
