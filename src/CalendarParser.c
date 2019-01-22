@@ -11,6 +11,7 @@ void updateState(int *event, int *alarm, char *first, char *ptr, Event **evt, Ca
     if ((strcmp(first, "BEGIN") == 0) && (strcmp(ptr, "VEVENT") == 0)) {
         //Updates event to be true and creates memory for it
         *evt = malloc(sizeof(Event));
+        strcpy((*evt)->UID, "bananorama");
         (*evt)->properties = initializeList((*printProperty), (*deleteProperty), (*compareProperties));
         (*evt)->alarms = initializeList((*printAlarm), (*deleteAlarm), (*compareAlarms));
         *event = 1;
@@ -18,12 +19,25 @@ void updateState(int *event, int *alarm, char *first, char *ptr, Event **evt, Ca
     else if ((strcmp(first, "END") == 0) && (strcmp(ptr, "VEVENT") == 0)) {
         //Resets event
         *event = 0;
-        //Appends event to the iCal list
-        insertBack((*cal)->events, *evt);
+        if (strcmp((*evt)->UID, "bananorama") == 0) {
+            *error = INV_EVENT;
+        }
+        //else if ((*evt)->startDateTime) {
+        //    *error = INV_EVENT;
+        //}
+        else {
+          //Appends event to the iCal list
+          insertBack((*cal)->events, *evt);
+        }
     }
     else if ((strcmp(first, "BEGIN") == 0) && (strcmp(ptr, "VALARM") == 0)) {
         //Updates alarm to be true
         *alm = malloc(sizeof(Alarm));
+        //So I kinda need to initialize my strings to something otherwise I'll get a mem error. These are my temp values, there is NO WAY someone will
+        //have a value as this.
+        strcpy((*alm)->action, "bananorama");
+        (*alm)->trigger = malloc(sizeof(char) * 11);
+        strcpy((*alm)->trigger, "bananorama");
         (*alm)->properties = initializeList((*printProperty), (*deleteProperty), (*compareProperties));
         *alarm = 1;
     }
@@ -31,14 +45,10 @@ void updateState(int *event, int *alarm, char *first, char *ptr, Event **evt, Ca
         //Resets alarm
         *alarm = 0;
         //Error checking to see if it is a valid alarm: trigger and action must both exist
-        if ((*alm)->trigger == NULL) {
-            deleteEvent(*evt);
-            deleteAlarm(*alm);
+        if (strcmp((*alm)->trigger, "bananorama") == 0) {
             *error = INV_ALARM;
         }
-        else if (strlen((*alm)->action) == 0) {
-            deleteEvent(*evt);
-            deleteAlarm(*alm);
+        else if (strcmp((*alm)->action, "bananorama") == 0) {
             *error = INV_ALARM;
         }
         else {
@@ -65,24 +75,39 @@ void createDate(char *ptr, DateTime **dt) {
 }
 
 //Helper function to add a new event
-void addToEvent(char *first, char *ptr, Calendar **obj, Event **evt, int unfolded) {
+void addToEvent(char *first, char *ptr, Calendar **obj, Event **evt, int unfolded, ICalErrorCode *err) {
     //Adds the UID property to the struct
     if (strcmp(first, "UID") == 0) {
-        strcpy((*evt)->UID, ptr);
+        if (strlen((*evt)->UID) == 0) {
+            strcpy((*evt)->UID, ptr);
+        }
+        else {
+            *err = INV_EVENT;
+        }
     }
     //Creates a new DateTime struct, and appends it to the startDT property
     else if (strcmp(first, "DTSTART") == 0) {
-        DateTime *dt =  malloc(sizeof(DateTime));
-        createDate(ptr, &dt);
-        (*evt)->startDateTime = *dt;
-        free(dt);
+        if ((strlen(ptr) == 15) || (strlen(ptr) == 16)) {
+            DateTime *dt =  malloc(sizeof(DateTime));
+            createDate(ptr, &dt);
+            (*evt)->startDateTime = *dt;
+            free(dt);
+        }
+        else {
+            *err = INV_DT;
+        }
     }
     //Creates a new DateTime struct and appends it to the dateCreated property
     else if (strcmp(first, "DTSTAMP") == 0) {
-        DateTime *dt =  malloc(sizeof(DateTime));
-        createDate(ptr, &dt);
-        (*evt)->creationDateTime = *dt;
-        free(dt);
+        if ((strlen(ptr) == 15) || (strlen(ptr) == 16)) {
+            DateTime *dt =  malloc(sizeof(DateTime));
+            createDate(ptr, &dt);
+            (*evt)->creationDateTime = *dt;
+            free(dt);
+        }
+        else {
+            *err = INV_DT;
+        }
     }
     //Adds the rest of the properties into the misc category
     else if (strcmp(first, "BEGIN") != 0) {
@@ -110,6 +135,7 @@ void addToAlarm(char *first, char *ptr, Event **evt, Alarm **alm, int unfolded) 
     }
     //Adds a trigger
     else if (strcmp(first, "TRIGGER") == 0) {
+        free((*alm)->trigger);
         (*alm)->trigger = malloc((sizeof(char) + 1) * strlen(ptr));
         strcpy((*alm)->trigger, ptr);
     }
@@ -131,13 +157,14 @@ void addToAlarm(char *first, char *ptr, Event **evt, Alarm **alm, int unfolded) 
 }
 
 //Helper function to add a property to the iCal file
-void addToCal(char *first, char *ptr, Calendar **obj, int unfolded, ICalErrorCode *err) {
+void addToCal(char *first, char *ptr, Calendar **obj, int unfolded, ICalErrorCode *err, int *isVersion) {
     if (strcmp(first, "VERSION") == 0) {
-        if ((*obj)->version == 2.0) {
+        if (*isVersion == 1) {
             *err = DUP_VER;
         }
         else {
             (*obj)->version = atof(ptr);
+            *isVersion = 1;
         }
     }
     //Adds the PRODID
@@ -172,13 +199,16 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
     char *first, *ptr, prev[1000], otherPrev[1000], *x;
     char line[1000];
     int wrapCount = 1;
-    Event *evt;
-    Alarm *alm;
+    Event *evt = NULL;
+    Alarm *alm = NULL;
     ICalErrorCode err = OK;
     int lineCount = 0;
+
     int isEvent = 0;
     int isAlarm = 0;
     int isUnfolding = 0;
+    int isVersion = 0;
+
     //Create an iCal struct
     *obj = malloc(sizeof(Calendar));
     fp = fopen(fileName, "r");
@@ -187,7 +217,8 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
         *obj = NULL;
         return INV_FILE;
     }
-
+    (*obj)->version = -1;
+    strcpy((*obj)->prodID, "");
     (*obj)->properties = initializeList((*printProperty), (*deleteProperty), (*compareProperties));
     (*obj)->events = initializeList((*printEvent), (*deleteEvent), (*compareEvents));
 
@@ -215,10 +246,10 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
                 wrapCount++;
                 isUnfolding = 1;
                 if ((isEvent == 0) && (isAlarm == 0)) {
-                    addToCal(otherPrev, prev, obj, isUnfolding, &err);
+                    addToCal(otherPrev, prev, obj, isUnfolding, &err, &isVersion);
                 }
                 else if ((isEvent == 1) && (isAlarm == 0)) {
-                    addToEvent(otherPrev, prev, obj, &evt, isUnfolding);
+                    addToEvent(otherPrev, prev, obj, &evt, isUnfolding, &err);
                 }
                 else if ((isEvent == 1) && (isAlarm == 1)) {
                     addToAlarm(otherPrev, prev, &evt, &alm, isUnfolding);
@@ -240,14 +271,36 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
                 if (err == OK) {
                     //Determine what state the program is in
                     if ((isEvent == 0) && (isAlarm == 0)) {
-                        addToCal(first, ptr, obj, isUnfolding, &err);
+                        addToCal(first, ptr, obj, isUnfolding, &err, &isVersion);
                     }
                     else if ((isEvent == 1) && (isAlarm == 0)) {
-                        addToEvent(first, ptr, obj, &evt, isUnfolding);
+                        addToEvent(first, ptr, obj, &evt, isUnfolding, &err);
                     }
                     else if ((isEvent == 1) && (isAlarm == 1)) {
                         addToAlarm(first, ptr, &evt, &alm, isUnfolding);
                     }
+                }
+                else if (err == INV_DT) {
+                    fclose(fp);
+                    deleteEvent(evt);
+                    deleteCalendar(*obj);
+                    *obj = NULL;
+                    return err;
+                }
+                else if (err == INV_EVENT) {
+                    fclose(fp);
+                    deleteEvent(evt);
+                    deleteCalendar(*obj);
+                    *obj = NULL;
+                    return err;
+                }
+                else if (err == INV_ALARM) {
+                    fclose(fp);
+                    deleteEvent(evt);
+                    deleteAlarm(alm);
+                    deleteCalendar(*obj);
+                    *obj = NULL;
+                    return err;
                 }
                 else {
                     fclose(fp);
