@@ -12,6 +12,8 @@ void updateState(int *event, int *alarm, char *first, char *ptr, Event **evt, Ca
         //Updates event to be true and creates memory for it
         *evt = malloc(sizeof(Event));
         strcpy((*evt)->UID, "bananorama");
+        (*evt)->startDateTime.date[0] = 0;
+        (*evt)->creationDateTime.date[0] = 0;
         (*evt)->properties = initializeList((*printProperty), (*deleteProperty), (*compareProperties));
         (*evt)->alarms = initializeList((*printAlarm), (*deleteAlarm), (*compareAlarms));
         *event = 1;
@@ -22,9 +24,12 @@ void updateState(int *event, int *alarm, char *first, char *ptr, Event **evt, Ca
         if (strcmp((*evt)->UID, "bananorama") == 0) {
             *error = INV_EVENT;
         }
-        //else if ((*evt)->startDateTime) {
-        //    *error = INV_EVENT;
-        //}
+        else if ((*evt)->startDateTime.date[0] == 0) {
+            *error = INV_EVENT;
+        }
+        else if ((*evt)->creationDateTime.date[0] == 0) {
+            *error = INV_EVENT;
+        }
         else {
           //Appends event to the iCal list
           insertBack((*cal)->events, *evt);
@@ -78,7 +83,7 @@ void createDate(char *ptr, DateTime **dt) {
 void addToEvent(char *first, char *ptr, Calendar **obj, Event **evt, int unfolded, ICalErrorCode *err) {
     //Adds the UID property to the struct
     if (strcmp(first, "UID") == 0) {
-        if (strlen((*evt)->UID) == 0) {
+        if (strcmp((*evt)->UID, "bananorama") == 0) {
             strcpy((*evt)->UID, ptr);
         }
         else {
@@ -87,11 +92,22 @@ void addToEvent(char *first, char *ptr, Calendar **obj, Event **evt, int unfolde
     }
     //Creates a new DateTime struct, and appends it to the startDT property
     else if (strcmp(first, "DTSTART") == 0) {
-        if ((strlen(ptr) == 15) || (strlen(ptr) == 16)) {
-            DateTime *dt =  malloc(sizeof(DateTime));
-            createDate(ptr, &dt);
-            (*evt)->startDateTime = *dt;
-            free(dt);
+        char *time;
+        char temp[strlen(ptr) + 1];
+        strcpy(temp, ptr);
+        //Seperates the Date from the Time
+        time = strtok(temp, "T");
+        if (strlen(time) == 8) {
+            time = strtok(NULL, "T");
+            if ((strlen(time) == 6) || (strlen(time) == 7)) {
+                DateTime *dt =  malloc(sizeof(DateTime));
+                createDate(ptr, &dt);
+                (*evt)->startDateTime = *dt;
+                free(dt);
+            }
+            else {
+                *err = INV_DT;
+            }
         }
         else {
             *err = INV_DT;
@@ -99,15 +115,26 @@ void addToEvent(char *first, char *ptr, Calendar **obj, Event **evt, int unfolde
     }
     //Creates a new DateTime struct and appends it to the dateCreated property
     else if (strcmp(first, "DTSTAMP") == 0) {
-        if ((strlen(ptr) == 15) || (strlen(ptr) == 16)) {
-            DateTime *dt =  malloc(sizeof(DateTime));
-            createDate(ptr, &dt);
-            (*evt)->creationDateTime = *dt;
-            free(dt);
-        }
-        else {
-            *err = INV_DT;
-        }
+      char *time;
+      char temp[strlen(ptr) + 1];
+      strcpy(temp, ptr);
+      //Seperates the Date from the Time
+      time = strtok(temp, "T");
+      if (strlen(time) == 8) {
+          time = strtok(NULL, "T");
+          if ((strlen(time) == 6) || (strlen(time) == 7)) {
+              DateTime *dt =  malloc(sizeof(DateTime));
+              createDate(ptr, &dt);
+              (*evt)->creationDateTime = *dt;
+              free(dt);
+          }
+          else {
+              *err = INV_DT;
+          }
+      }
+      else {
+          *err = INV_DT;
+      }
     }
     //Adds the rest of the properties into the misc category
     else if (strcmp(first, "BEGIN") != 0) {
@@ -170,7 +197,7 @@ void addToCal(char *first, char *ptr, Calendar **obj, int unfolded, ICalErrorCod
     //Adds the PRODID
     else if (strcmp(first, "PRODID") == 0) {
         if (strlen((*obj)->prodID) != 0) {
-          *err = DUP_PRODID;
+            *err = DUP_PRODID;
         }
         else {
             strcpy((*obj)->prodID, ptr);
@@ -198,12 +225,14 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
     FILE *fp;
     char *first, *ptr, prev[1000], otherPrev[1000], *x;
     char line[1000];
+    char *temp;
     int wrapCount = 1;
     Event *evt = NULL;
     Alarm *alm = NULL;
     ICalErrorCode err = OK;
     int lineCount = 0;
-
+    char fileNameCopy[strlen(fileName)];
+    char *isICS;
     int isEvent = 0;
     int isAlarm = 0;
     int isUnfolding = 0;
@@ -217,6 +246,15 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
         *obj = NULL;
         return INV_FILE;
     }
+    //Check for valid file type
+    strcpy(fileNameCopy, fileName);
+    isICS = strtok(fileNameCopy, ".");
+    isICS = strtok(NULL, ".");
+    if (strcmp(isICS, "ics") != 0) {
+        *obj = NULL;
+        return INV_FILE;
+    }
+    //If good, initialize structure
     (*obj)->version = -1;
     strcpy((*obj)->prodID, "");
     (*obj)->properties = initializeList((*printProperty), (*deleteProperty), (*compareProperties));
@@ -245,6 +283,7 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
                 lineCount++;
                 wrapCount++;
                 isUnfolding = 1;
+                //Add value to appropriate struct
                 if ((isEvent == 0) && (isAlarm == 0)) {
                     addToCal(otherPrev, prev, obj, isUnfolding, &err, &isVersion);
                 }
@@ -280,6 +319,7 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
                         addToAlarm(first, ptr, &evt, &alm, isUnfolding);
                     }
                 }
+                //Do error checking if it occurs in one of the addition functions
                 else if (err == INV_DT) {
                     fclose(fp);
                     deleteEvent(evt);
@@ -312,7 +352,7 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
         }
         //File format error checking
         if ((lineCount == 0) && ((strcmp(first, "BEGIN") != 0) || (strcmp(ptr, "VCALENDAR") != 0))) {
-            return INV_FILE;
+            return INV_CAL;
         }
 
         //Increment line counters
@@ -326,7 +366,17 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
     if ((strcmp(first, "END") != 0) || (strcmp(ptr, "VCALENDAR") != 0)) {
         deleteCalendar(*obj);
         *obj = NULL;
-        return INV_VER;
+        return INV_CAL;
+    }
+    if (isEvent == 1) {
+        deleteCalendar(*obj);
+        *obj = NULL;
+        return INV_EVENT;
+    }
+    if (isAlarm == 1) {
+      deleteCalendar(*obj);
+      *obj = NULL;
+      return INV_ALARM;
     }
     //Check if it is the correct version/ if it exists
     if ((*obj)->version != 2.0) {
@@ -338,8 +388,18 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
     if (strlen((*obj)->prodID) == 0) {
         deleteCalendar(*obj);
         *obj = NULL;
-        return INV_PRODID;
+        return INV_CAL;
     }
+    //Check if the cal has at least one event
+    temp = toString((*obj)->events);
+    if (strcmp(temp, "") == 0) {
+        deleteCalendar(*obj);
+        free(temp);
+        *obj = NULL;
+        return INV_CAL;
+    }
+    free(temp);
+    //Check if event is missing closing tag
 
     return OK;
 }
@@ -372,7 +432,36 @@ char* printCalendar(const Calendar* obj) {
 }
 
 char* printError(ICalErrorCode err) {
-    return "hi";
+    if (err == INV_FILE) {
+        return "Invalid file";
+    }
+    else if (err == INV_CAL) {
+        return "Invalid calendar";
+    }
+    else if (err == INV_VER) {
+        return "Invalid version";
+    }
+    else if (err == DUP_VER) {
+        return "Duplicate version";
+    }
+    else if (err == INV_PRODID) {
+        return "Invalid product ID";
+    }
+    else if (err == DUP_PRODID) {
+        return "Duplicate product ID";
+    }
+    else if (err == INV_EVENT) {
+        return "Invalid event";
+    }
+    else if (err == INV_DT) {
+        return "Invalid datetime";
+    }
+    else if (err == INV_ALARM) {
+        return "Invalid alarm";
+    }
+    else {
+        return "Other error";
+    }
 }
 
 ICalErrorCode writeCalendar(char* fileName, const Calendar* obj) {
