@@ -24,6 +24,7 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
     int isAlarm = 0;
     int isUnfolding = 0;
     int isVersion = 0;
+    int idk = 0;
 
     //Create an iCal struct
     *obj = malloc(sizeof(Calendar));
@@ -49,8 +50,34 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
 
     //Main loop for reading the file
     while (fgets(line, sizeof(line), fp)) {
-        //Strip new line character from end of fgets
-        strtok(line, "\n");
+        //Check if the line is too long: must be less than 77 characters including /r/n, as it
+        if (strlen(line) > 77) {
+            fclose(fp);
+            deleteCalendar(*obj);
+            if (evt != NULL) {
+                deleteEvent(evt);
+            }
+            if (alm != NULL) {
+              deleteAlarm(alm);
+            }
+            *obj = NULL;
+            return INV_FILE;
+        }
+        //Check if the line ends in /r/n
+        if ((line[strlen(line) - 1] != '\n') && (line[strlen(line) - 2] != '\r')) {
+            fclose(fp);
+            deleteCalendar(*obj);
+            if (evt != NULL) {
+                deleteEvent(evt);
+            }
+            if (alm != NULL) {
+              deleteAlarm(alm);
+            }
+            *obj = NULL;
+            return INV_FILE;
+        }
+        //Strip /n from line for parsing purposes
+        strtok(line, "\r\n");
         //Check for comments
         if (line[0] != ';') {
             //line unfolding
@@ -68,7 +95,6 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
                 //set prev value
                 strcpy(prev, temp);
                 lineCount++;
-                wrapCount++;
                 isUnfolding = 1;
                 //Add value to appropriate struct
                 if ((isEvent == 0) && (isAlarm == 0)) {
@@ -90,23 +116,61 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
                 ptr = strtok(line, ":;");
                 first = ptr;
                 ptr = strtok(NULL, "");
-                strcpy(prev, ptr);
-                strcpy(otherPrev, first);
 
-                updateState(&isEvent, &isAlarm, first, ptr, &evt, obj, &alm, &err);
-                if (err == OK) {
-                    //Determine what state the program is in
+                //Check to see if the property value is a string
+                if (ptr == NULL) {
+                    //If it is invalid, we need to determine what state the program is in.
                     if ((isEvent == 0) && (isAlarm == 0)) {
-                        addToCal(first, ptr, obj, isUnfolding, &err, &isVersion);
+                        if (strcmp(first, "VERSION") == 0) {
+                            err = INV_VER;
+                        }
+                        else if (strcmp(first, "PRODID") == 0) {
+                            err = INV_PRODID;
+                        }
+                        else {
+                            err = INV_CAL;
+                        }
                     }
                     else if ((isEvent == 1) && (isAlarm == 0)) {
-                        addToEvent(first, ptr, obj, &evt, isUnfolding, &err);
+                        if (strcmp(first, "DTSTART") == 0) {
+                            err = INV_DT;
+                        }
+                        else if (strcmp(first, "DTSTAMP") == 0) {
+                            err = INV_DT;
+                        }
+                        else {
+                            err = INV_EVENT;
+                        }
                     }
                     else if ((isEvent == 1) && (isAlarm == 1)) {
-                        addToAlarm(first, ptr, &evt, &alm, isUnfolding);
+                            err = INV_ALARM;
+                    }
+                }
+                else {
+                    strcpy(prev, ptr);
+                    strcpy(otherPrev, first);
+
+                    updateState(&isEvent, &isAlarm, first, ptr, &evt, obj, &alm, &err);
+                    if (err == OK) {
+                        //Determine what state the program is in
+                        if ((isEvent == 0) && (isAlarm == 0)) {
+                            addToCal(first, ptr, obj, isUnfolding, &err, &isVersion);
+                        }
+                        else if ((isEvent == 1) && (isAlarm == 0)) {
+                            addToEvent(first, ptr, obj, &evt, isUnfolding, &err);
+                        }
+                        else if ((isEvent == 1) && (isAlarm == 1)) {
+                            addToAlarm(first, ptr, &evt, &alm, isUnfolding);
+                        }
                     }
                 }
                 //Do error checking if it occurs in one of the addition functions
+                if (err == OK) {
+                  //This is absolutely spaghetti code, this if statement needs to be here otherwise everything gets beaned
+                  if (idk == 0) {
+                      idk = 1;
+                  }
+                }
                 else if (err == INV_DT) {
                     fclose(fp);
                     deleteEvent(evt);
@@ -139,6 +203,9 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
         }
         //File format error checking
         if ((lineCount == 0) && ((strcmp(first, "BEGIN") != 0) || (strcmp(ptr, "VCALENDAR") != 0))) {
+            fclose(fp);
+            deleteCalendar(*obj);
+            *obj = NULL;
             return INV_CAL;
         }
 
@@ -157,11 +224,13 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
     }
     if (isEvent == 1) {
         deleteCalendar(*obj);
+        deleteEvent(evt);
         *obj = NULL;
         return INV_EVENT;
     }
     if (isAlarm == 1) {
       deleteCalendar(*obj);
+      deleteAlarm(alm);
       *obj = NULL;
       return INV_ALARM;
     }

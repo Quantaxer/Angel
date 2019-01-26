@@ -190,12 +190,23 @@ void addToCal(char *first, char *ptr, Calendar **obj, int unfolded, ICalErrorCod
     }
     //Adds the PRODID
     else if (strcmp(first, "PRODID") == 0) {
-        if (strlen((*obj)->prodID) != 0) {
-            *err = DUP_PRODID;
+        if (strlen(ptr) == 0) {
+            *err = INV_PRODID;
         }
         else {
-            strcpy((*obj)->prodID, ptr);
+            if (unfolded == 1) {
+                strcat((*obj)->prodID, ptr);
+            }
+            else {
+                if (strlen((*obj)->prodID) != 0) {
+                    *err = DUP_PRODID;
+                }
+                else {
+                    strcpy((*obj)->prodID, ptr);
+                }
+            }
         }
+
     }
     //Adds anything that isn't begin or end as a property
     else if (strcmp(first, "BEGIN") != 0) {
