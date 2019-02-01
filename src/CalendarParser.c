@@ -39,7 +39,9 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
     isICS = strtok(fileNameCopy, ".");
     isICS = strtok(NULL, ".");
     if (strcmp(isICS, "ics") != 0) {
+        free(*obj);
         *obj = NULL;
+        fclose(fp);
         return INV_FILE;
     }
     //If good, initialize structure
@@ -171,6 +173,7 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
                       idk = 1;
                   }
                 }
+                //This part handles freeing the memory based on the error thrown
                 else if (err == INV_DT) {
                     fclose(fp);
                     deleteEvent(evt);
@@ -222,12 +225,14 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
         *obj = NULL;
         return INV_CAL;
     }
+    //If event is missing a closing statement at the end
     if (isEvent == 1) {
         deleteCalendar(*obj);
         deleteEvent(evt);
         *obj = NULL;
         return INV_EVENT;
     }
+    //If alarm is missing a closing statement at the end
     if (isAlarm == 1) {
       deleteCalendar(*obj);
       deleteAlarm(alm);

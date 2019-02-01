@@ -3,14 +3,20 @@
 //Helper function to tell what the current item you are reading in is (alarm, event, ical property)
 void updateState(int *event, int *alarm, char *first, char *ptr, Event **evt, Calendar **cal, Alarm **alm, ICalErrorCode *error) {
     if ((strcmp(first, "BEGIN") == 0) && (strcmp(ptr, "VEVENT") == 0)) {
-        //Updates event to be true and creates memory for it
-        *evt = malloc(sizeof(Event));
-        strcpy((*evt)->UID, "bananorama");
-        (*evt)->startDateTime.date[0] = 0;
-        (*evt)->creationDateTime.date[0] = 0;
-        (*evt)->properties = initializeList((*printProperty), (*deleteProperty), (*compareProperties));
-        (*evt)->alarms = initializeList((*printAlarm), (*deleteAlarm), (*compareAlarms));
-        *event = 1;
+        //Check if new event is being called without a closing statement
+        if (*event == 1) {
+            *error = INV_EVENT;
+        }
+        else {
+          //Updates event to be true and creates memory for it, initializing values
+          *evt = malloc(sizeof(Event));
+          strcpy((*evt)->UID, "bananorama");
+          (*evt)->startDateTime.date[0] = 0;
+          (*evt)->creationDateTime.date[0] = 0;
+          (*evt)->properties = initializeList((*printProperty), (*deleteProperty), (*compareProperties));
+          (*evt)->alarms = initializeList((*printAlarm), (*deleteAlarm), (*compareAlarms));
+          *event = 1;
+        }
     }
     else if ((strcmp(first, "END") == 0) && (strcmp(ptr, "VEVENT") == 0)) {
         //Resets event
@@ -30,15 +36,21 @@ void updateState(int *event, int *alarm, char *first, char *ptr, Event **evt, Ca
         }
     }
     else if ((strcmp(first, "BEGIN") == 0) && (strcmp(ptr, "VALARM") == 0)) {
-        //Updates alarm to be true
-        *alm = malloc(sizeof(Alarm));
-        //So I kinda need to initialize my strings to something otherwise I'll get a mem error. These are my temp values, there is NO WAY someone will
-        //have a value as this.
-        strcpy((*alm)->action, "bananorama");
-        (*alm)->trigger = malloc(sizeof(char) * 11);
-        strcpy((*alm)->trigger, "bananorama");
-        (*alm)->properties = initializeList((*printProperty), (*deleteProperty), (*compareProperties));
-        *alarm = 1;
+        //Check if new alarm is being called without a closing statement
+        if (*alarm == 1) {
+            *error = INV_ALARM;
+        }
+        else {
+            //Updates alarm to be true
+            *alm = malloc(sizeof(Alarm));
+            //So I kinda need to initialize my strings to something otherwise I'll get a mem error. These are my temp values, there is NO WAY someone will
+            //have a value as this.
+            strcpy((*alm)->action, "bananorama");
+            (*alm)->trigger = malloc(sizeof(char) * 11);
+            strcpy((*alm)->trigger, "bananorama");
+            (*alm)->properties = initializeList((*printProperty), (*deleteProperty), (*compareProperties));
+            *alarm = 1;
+        }
     }
     else if ((strcmp(first, "END") == 0) && (strcmp(ptr, "VALARM") == 0)) {
         //Resets alarm
@@ -89,11 +101,13 @@ void addToEvent(char *first, char *ptr, Calendar **obj, Event **evt, int unfolde
         char *time;
         char temp[strlen(ptr) + 1];
         strcpy(temp, ptr);
-        //Seperates the Date from the Time
+        //This is for error checking to see if the string is valid
         time = strtok(temp, "T");
+        //The date part must be 8 characters and the time part must be either 6 or 7
         if (strlen(time) == 8) {
             time = strtok(NULL, "T");
             if ((strlen(time) == 6) || (strlen(time) == 7)) {
+                //If it is a valid string, allocate memory for a new dt and add it
                 DateTime *dt =  malloc(sizeof(DateTime));
                 createDate(ptr, &dt);
                 (*evt)->startDateTime = *dt;
@@ -112,11 +126,12 @@ void addToEvent(char *first, char *ptr, Calendar **obj, Event **evt, int unfolde
       char *time;
       char temp[strlen(ptr) + 1];
       strcpy(temp, ptr);
-      //Seperates the Date from the Time
+      //This error checking is the same for DTSTART
       time = strtok(temp, "T");
       if (strlen(time) == 8) {
           time = strtok(NULL, "T");
           if ((strlen(time) == 6) || (strlen(time) == 7)) {
+              //Allocate memory for a new dt and put it into the struct
               DateTime *dt =  malloc(sizeof(DateTime));
               createDate(ptr, &dt);
               (*evt)->creationDateTime = *dt;
@@ -180,6 +195,7 @@ void addToAlarm(char *first, char *ptr, Event **evt, Alarm **alm, int unfolded) 
 //Helper function to add a property to the iCal file
 void addToCal(char *first, char *ptr, Calendar **obj, int unfolded, ICalErrorCode *err, int *isVersion) {
     if (strcmp(first, "VERSION") == 0) {
+        //Check if the version already exists
         if (*isVersion == 1) {
             *err = DUP_VER;
         }
@@ -190,23 +206,18 @@ void addToCal(char *first, char *ptr, Calendar **obj, int unfolded, ICalErrorCod
     }
     //Adds the PRODID
     else if (strcmp(first, "PRODID") == 0) {
-        if (strlen(ptr) == 0) {
-            *err = INV_PRODID;
+        //Make sure that error checking doesn't occur if the line is being unfolded
+        if (unfolded == 1) {
+            strcat((*obj)->prodID, ptr);
         }
         else {
-            if (unfolded == 1) {
-                strcat((*obj)->prodID, ptr);
+            if (strlen((*obj)->prodID) != 0) {
+                *err = DUP_PRODID;
             }
             else {
-                if (strlen((*obj)->prodID) != 0) {
-                    *err = DUP_PRODID;
-                }
-                else {
-                    strcpy((*obj)->prodID, ptr);
-                }
+                strcpy((*obj)->prodID, ptr);
             }
         }
-
     }
     //Adds anything that isn't begin or end as a property
     else if (strcmp(first, "BEGIN") != 0) {

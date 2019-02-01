@@ -4,7 +4,7 @@
 //Main loop for testing purposes ONLY, remove when submitting
 int main(void) {
     Calendar *cal;
-    ICalErrorCode err = createCalendar("src/testCalEvtPropAlm.ics", &cal);
+    ICalErrorCode err = createCalendar("src/file.txt", &cal);
     if (err == OK) {
       char *printString = printCalendar(cal);
       printf("%s\n", printString);
