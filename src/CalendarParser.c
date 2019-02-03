@@ -18,19 +18,24 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
     Alarm *alm = NULL;
     ICalErrorCode err = OK;
     int lineCount = 0;
-    char fileNameCopy[strlen(fileName)];
     char *isICS;
     int isEvent = 0;
     int isAlarm = 0;
     int isUnfolding = 0;
     int isVersion = 0;
     int idk = 0;
-
+    //Check if filename is null
+    if (fileName == NULL) {
+        return INV_FILE;
+    }
     //Create an iCal struct
     *obj = malloc(sizeof(Calendar));
-    fp = fopen(fileName, "r");
 
+    char fileNameCopy[strlen(fileName)];
+    fp = fopen(fileName, "r");
+    //Check if the file has been opened properly
     if (fp == NULL) {
+        free(*obj);
         *obj = NULL;
         return INV_FILE;
     }
