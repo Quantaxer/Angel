@@ -18,27 +18,13 @@ void updateState(int *event, int *alarm, char *first, char *ptr, Event **evt, Ca
           *event = 1;
         }
     }
-    else if ((strcmp(first, "END") == 0) && (strcmp(ptr, "VEVENT") == 0)) {
-        //Resets event
-        *event = 0;
-        if (strcmp((*evt)->UID, "bananorama") == 0) {
-            *error = INV_EVENT;
-        }
-        else if ((*evt)->startDateTime.date[0] == 0) {
-            *error = INV_EVENT;
-        }
-        else if ((*evt)->creationDateTime.date[0] == 0) {
-            *error = INV_EVENT;
-        }
-        else {
-          //Appends event to the iCal list
-          insertBack((*cal)->events, *evt);
-        }
-    }
     else if ((strcmp(first, "BEGIN") == 0) && (strcmp(ptr, "VALARM") == 0)) {
         //Check if new alarm is being called without a closing statement
         if (*alarm == 1) {
             *error = INV_ALARM;
+        }
+        else if (*event == 0) {
+            *error = INV_CAL;
         }
         else {
             //Updates alarm to be true
@@ -52,19 +38,54 @@ void updateState(int *event, int *alarm, char *first, char *ptr, Event **evt, Ca
             *alarm = 1;
         }
     }
+    else if ((strcmp(first, "END") == 0) && (strcmp(ptr, "VEVENT") == 0)) {
+        //Resets event
+        printf("%d ", *event);
+        if (*event == 0) {
+            *error = INV_CAL;
+        }
+        else if (strcmp((*evt)->UID, "bananorama") == 0) {
+            *error = INV_EVENT;
+        }
+        else if ((*evt)->startDateTime.date[0] == 0) {
+            *error = INV_EVENT;
+        }
+        else if ((*evt)->creationDateTime.date[0] == 0) {
+            *error = INV_EVENT;
+        }
+        else {
+          *event = 0;
+          //Appends event to the iCal list
+          insertBack((*cal)->events, *evt);
+        }
+    }
     else if ((strcmp(first, "END") == 0) && (strcmp(ptr, "VALARM") == 0)) {
         //Resets alarm
-        *alarm = 0;
+        if ((*alarm == 0) && (*event == 1)) {
+            *error = INV_EVENT;
+        }
+        else if (*event == 0) {
+            *error = INV_CAL;
+        }
         //Error checking to see if it is a valid alarm: trigger and action must both exist
-        if (strcmp((*alm)->trigger, "bananorama") == 0) {
+        else if (strcmp((*alm)->trigger, "bananorama") == 0) {
             *error = INV_ALARM;
         }
         else if (strcmp((*alm)->action, "bananorama") == 0) {
             *error = INV_ALARM;
         }
         else {
+          *alarm = 0;
           //Appends current alarm to the event list
           insertBack((*evt)->alarms, *alm);
+        }
+    }
+    else if ((strcmp(first, "BEGIN") == 0) && (strcmp(ptr, "VALARM") != 0) && (strcmp(ptr, "VEVENT") == 0)) {
+        if (*event == 1) {
+            *error = INV_ALARM;
+        }
+        else {
+            *error = INV_CAL;
         }
     }
 }
