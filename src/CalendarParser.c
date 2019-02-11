@@ -4,7 +4,7 @@
   CIS*2750
 */
 
-#include "CalendarParser.h"
+#include "CalendarParser_A2temp.h"
 #include "HelperFunctions.h"
 
 ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
@@ -331,6 +331,68 @@ char* printError(ICalErrorCode err) {
 }
 
 ICalErrorCode writeCalendar(char* fileName, const Calendar* obj) {
+    char *isICS;
+    char *tempString;
+    char *tempString2;
+    char *tempPropList;
+    char version[4];
+    FILE *fp;
+    //Check for object or filename being null
+    if (obj == NULL) {
+        return WRITE_ERROR;
+    }
+    if (fileName == NULL) {
+      return WRITE_ERROR;
+    }
+    char fileNameCopy[strlen(fileName)];
+
+    //Check for valid file extension
+    strcpy(fileNameCopy, fileName);
+    isICS = strtok(fileNameCopy, ".");
+    isICS = strtok(NULL, ".");
+    if (strcmp(isICS, "ics") != 0) {
+        return WRITE_ERROR;
+    }
+
+    //open/ create file for writing
+    fp = fopen(fileName, "w");
+
+    fputs("BEGIN:VCALENDAR\r\n", fp);
+    //Allocate memory for a temporary string, and print version
+    tempString = malloc(sizeof(char) * 14);
+    strcpy(tempString, "VERSION:");
+    snprintf(version, 4, "%.1f", obj->version);
+    strcat(tempString, version);
+    strcat(tempString, "\r\n");
+    fputs(tempString, fp);
+    free(tempString);
+
+    //Allocate memory for prodID string, and print to file
+    tempString2 = malloc(sizeof(char) * (10 + strlen(obj->prodID)));
+    strcpy(tempString2, "ProdID:");
+    strcat(tempString2, obj->prodID);
+    fputs(tempString2, fp);
+    free(tempString2);
+
+    //Print list of cal properties to the file
+    tempPropList = toString(obj->properties);
+    fputs(tempPropList, fp);
+    free(tempPropList);
+    fputs("\r\n", fp);
+
+    ListIterator iter = createIterator(obj->events);
+    void* elem;
+  	while((elem = nextElement(&iter)) != NULL){
+        fputs("BEGIN:VEVENT\r\n", fp);
+    		char* currDescr = serializeEvent(elem, &fp);
+        fputs(currDescr, fp);
+        free(currDescr);
+        fputs("END:VEVENT\r\n", fp);
+
+  	}
+    fputs("END:VCALENDAR\r\n", fp);
+
+    fclose(fp);
     return OK;
 }
 
@@ -424,10 +486,9 @@ int compareProperties(const void* first, const void* second) {
 char* printProperty(void* toBePrinted) {
     char *str;
     Property *propToPrint = (Property*)toBePrinted;
-    str = malloc(sizeof(char) * (strlen(propToPrint->propName) + strlen(propToPrint->propDescr) + 21));
-    strcpy(str, "Name: ");
-    strcat(str, propToPrint->propName);
-    strcat(str, " Description: ");
+    str = malloc(sizeof(char) * (strlen(propToPrint->propName) + strlen(propToPrint->propDescr) + 2));
+    strcpy(str, propToPrint->propName);
+    strcat(str, ":");
     strcat(str, propToPrint->propDescr);
     strcat(str, "\0");
     return str;
@@ -445,16 +506,11 @@ char* printDate(void* toBePrinted) {
     DateTime *dt = (DateTime*)toBePrinted;
     char *str;
     str = malloc(sizeof(char) * (strlen(dt->date) + strlen(dt->time) + 21));
-    strcpy(str, "Date: ");
-    strcat(str, dt->date);
-    strcat(str, " Time: ");
+    strcpy(str, dt->date);
+    strcat(str, "T");
     strcat(str, dt->time);
-    strcat(str, " UTC: ");
     if (dt->UTC) {
-        strcat(str, "1");
-    }
-    else {
-        strcat(str, "0");
+        strcat(str, "Z");
     }
     strcat(str, "\0");
     return str;

@@ -10,7 +10,7 @@ liblist.so: bin/LinkedListAPI.o
 
 parser: calendarParser.o HelperFunctions.o libcal.so
 
-calendarParser.o: src/CalendarParser.c include/CalendarParser.h
+calendarParser.o: src/CalendarParser.c include/CalendarParser_A2temp.h
 	gcc -Wall -std=c11 -c -fpic -Iinclude/../include src/CalendarParser.c -o bin/CalendarParser.o
 
 HelperFunctions.o: src/HelperFunctions.c include/HelperFunctions.h

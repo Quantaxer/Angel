@@ -1,5 +1,5 @@
 #include "LinkedListAPI.h"
-#include "CalendarParser.h"
+#include "CalendarParser_A2temp.h"
 
 //Main loop for testing purposes ONLY, remove when submitting
 int main(void) {
@@ -9,6 +9,7 @@ int main(void) {
       char *printString = printCalendar(cal);
       printf("%s\n", printString);
       free(printString);
+      writeCalendar("src/testWrite.ics", cal);
       deleteCalendar(cal);
     }
     else {

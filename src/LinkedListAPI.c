@@ -294,7 +294,7 @@ char* toString(List * list){
 		char* currDescr = list->printData(elem);
 		int newLen = strlen(str)+50+strlen(currDescr);
 		str = (char*)realloc(str, newLen);
-		strcat(str, "\n");
+		strcat(str, "\r\n");
 		strcat(str, currDescr);
 
 		free(currDescr);
@@ -302,6 +302,7 @@ char* toString(List * list){
 
 	return str;
 }
+
 
 ListIterator createIterator(List* list){
     ListIterator iter;
