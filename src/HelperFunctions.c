@@ -280,3 +280,100 @@ char* serializeAlarm(void* toBePrinted) {
     free(tempProp);
     return str;
 }
+
+ICalErrorCode validateEvent(void *toBeValidated) {
+    Event *evt = (Event*)toBeValidated;
+    //0-13 required only one, 14-23 anytime
+    char *propList[27] = {"CLASS", "CREATED", "DESCRIPTION", "GEO", "LAST-MODIFIED", "LOCATION", "ORGANIZER", "PRIORITY", "SEQ", "STATUS", "SUMMARY", "TRANSP", "URL", "RECURID", "DTEND", "DURATION", "ATTACH", "ATTENDEE", "CATEGORIES", "COMMENT", "CONTACT", "EXDATE", "RSTATUS", "RELATED", "RESOURCES", "RDATE", "RRULE"};
+    //Array that keeps track of number of times an item occurs
+    int inArray[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    int isValid = 0;
+    int i = 0;
+    ICalErrorCode err;
+    err = OK;
+
+    //perform event property validation
+    ListIterator iter = createIterator(evt->properties);
+    void* elem;
+  	while((elem = nextElement(&iter)) != NULL){
+        isValid = 0;
+    		Property *prop = (Property*)elem;
+        for (i = 0; i < 27; ++i) {
+            //Check if the property is valid
+            if (strcmp(prop->propName, propList[i]) == 0) {
+                //Increment the number of times the property occurs
+                if (i < 14) {
+                    inArray[i] = inArray[i] + 1;
+                    if (inArray[i] >= 2) {
+                        return INV_EVENT;
+                    }
+                }
+                if ((i == 14) || (i == 15)) {
+                    inArray[i] = inArray[i] + 1;
+                }
+                //Makes sure that optional events that can only occur once stays true
+                isValid = 1;
+            }
+        }
+        //Check if both DTEND and DURATION occur
+        if ((inArray[14] == 1) && (inArray[15] == 1)) {
+            return INV_EVENT;
+        }
+        //checks to see if the property is supposed to be in an event
+        if (isValid == 0) {
+            return INV_EVENT;
+        }
+  	}
+
+    //Iterate through the list of Alarms and validate each one
+    ListIterator iter1 = createIterator(evt->alarms);
+    void* elem1;
+    while((elem1 = nextElement(&iter1)) != NULL){
+        err = validateAlarm(elem1);
+        //Check if an error occurred when iterating through the alarms
+        if (err != OK) {
+            return err;
+        }
+    }
+    return err;
+}
+
+ICalErrorCode validateAlarm(void *toBeValidated) {
+    Alarm *alm = (Alarm*)toBeValidated;
+    int durationCount = 0;
+    int repeatCount = 0;
+    int attachCount = 0;
+
+    //Performs Alarm validation on list of properties
+    ListIterator iter = createIterator(alm->properties);
+    void* elem;
+  	while((elem = nextElement(&iter)) != NULL){
+        Property *prop = (Property*)elem;
+        if (strcmp(prop->propName, "DURATION") == 0) {
+            durationCount++;
+        }
+        else if (strcmp(prop->propName, "REPEAT") == 0) {
+            //Repeat must be an integer value
+            if (atoi(prop->propDescr) == 0) {
+                return INV_ALARM;
+            }
+            repeatCount++;
+        }
+        else if (strcmp(prop->propName, "ATTACH") == 0) {
+            attachCount++;
+        }
+        else {
+            return INV_ALARM;
+        }
+        //Duration and repeat cannot occur more than once
+        if ((durationCount > 1) || (repeatCount > 1) || (attachCount > 1)) {
+            return INV_ALARM;
+        }
+        //If duration occurs, then repeat must occur. Vice versa
+        if (((durationCount == 1) && (repeatCount == 0)) || ((durationCount == 0) && (repeatCount == 1))) {
+            return INV_ALARM;
+        }
+
+  	}
+    return OK;
+}

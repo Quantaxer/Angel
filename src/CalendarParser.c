@@ -4,7 +4,7 @@
   CIS*2750
 */
 
-#include "CalendarParser_A2temp.h"
+#include "CalendarParser_A2temp2.h"
 #include "HelperFunctions.h"
 
 ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
@@ -397,7 +397,61 @@ ICalErrorCode writeCalendar(char* fileName, const Calendar* obj) {
 }
 
 ICalErrorCode validateCalendar(const Calendar* obj) {
-    return OK;
+    ICalErrorCode err;
+    err = OK;
+    int calScaleCount = 0;
+    int methodCount = 0;
+    int i = 0;
+    int isIn = 0;
+    char *propList[2] = {"CALSCALE", "METHOD"};
+    //Check for null pointer
+    if (obj == NULL) {
+        return INV_CAL;
+    }
+
+    //Iterate through the list of properties
+    ListIterator iter = createIterator(obj->properties);
+    void* elem;
+  	while((elem = nextElement(&iter)) != NULL){
+    		Property *prop = (Property*)elem;
+        isIn = 0;
+        //Iterate through list of properties and determine if they should be in the list
+        for (i = 0; i < 2; ++i) {
+            if (strcmp(prop->propName, propList[i]) == 0) {
+                isIn = 1;
+            }
+        }
+        //If a prop should not be in the array, exit
+        if (isIn == 0) {
+            return INV_CAL;
+        }
+        //Checkhow many times certain properties can occur
+        if (strcmp(prop->propName, "CALSCALE") == 0) {
+            calScaleCount++;
+            //Calscale can only ever be gregorian in this version of an iCal file
+            if (strcmp(prop->propDescr, "GREGORIAN") != 0) {
+                return INV_CAL;
+            }
+        }
+        else if (strcmp(prop->propName, "METHOD") == 0) {
+            methodCount++;
+        }
+        //If they occur more than once, return an error
+        if ((calScaleCount > 1) || (methodCount > 1)) {
+            return INV_CAL;
+        }
+  	}
+    //Iterate through the list of events and validate that each event is valid
+    ListIterator iter1 = createIterator(obj->events);
+    void* elem1;
+  	while((elem1 = nextElement(&iter1)) != NULL){
+    		err = validateEvent(elem1);
+        //Check if an error occurred when iterating through the events
+        if (err != OK) {
+            return err;
+        }
+  	}
+    return err;
 }
 
 void deleteEvent(void* toBeDeleted){

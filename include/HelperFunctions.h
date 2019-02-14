@@ -13,7 +13,7 @@
 #include <stdlib.h>
 
 #include "LinkedListAPI.h"
-#include "CalendarParser_A2temp.h"
+#include "CalendarParser_A2temp2.h"
 
 //Helper function to tell what the current item you are reading in is (alarm, event, ical property)
 void updateState(int *event, int *alarm, char *first, char *ptr, Event **evt, Calendar **cal, Alarm **alm, ICalErrorCode *error);
@@ -33,5 +33,9 @@ void addToCal(char *first, char *ptr, Calendar **obj, int unfolded, ICalErrorCod
 char* serializeEvent(void* toBePrinted, FILE **fp);
 
 char* serializeAlarm(void* toBePrinted);
+
+ICalErrorCode validateEvent(void *toBeValidated);
+
+ICalErrorCode validateAlarm(void *toBeValidated);
 
 #endif
