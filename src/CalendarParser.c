@@ -408,7 +408,7 @@ ICalErrorCode validateCalendar(const Calendar* obj) {
     if (obj == NULL) {
         return INV_CAL;
     }
-
+    
     //Iterate through the list of properties
     ListIterator iter = createIterator(obj->properties);
     void* elem;

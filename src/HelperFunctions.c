@@ -281,10 +281,29 @@ char* serializeAlarm(void* toBePrinted) {
     return str;
 }
 
+ICalErrorCode validateDateTime(char *date) {
+    char *time;
+    char temp[strlen(date) + 1];
+    strcpy(temp, date);
+    //This is for error checking to see if the string is valid
+    time = strtok(temp, "T");
+    //The date part must be 8 characters and the time part must be either 6 or 7
+    if (strlen(time) == 8) {
+        time = strtok(NULL, "T");
+        if ((strlen(time) < 6) || (strlen(time) > 7)) {
+            return INV_EVENT;
+        }
+    }
+    else {
+        return INV_EVENT;
+    }
+    return OK;
+}
+
 ICalErrorCode validateEvent(void *toBeValidated) {
     Event *evt = (Event*)toBeValidated;
     //0-13 required only one, 14-23 anytime
-    char *propList[27] = {"CLASS", "CREATED", "DESCRIPTION", "GEO", "LAST-MODIFIED", "LOCATION", "ORGANIZER", "PRIORITY", "SEQ", "STATUS", "SUMMARY", "TRANSP", "URL", "RECURID", "DTEND", "DURATION", "ATTACH", "ATTENDEE", "CATEGORIES", "COMMENT", "CONTACT", "EXDATE", "RSTATUS", "RELATED", "RESOURCES", "RDATE", "RRULE"};
+    char *propList[27] = {"CLASS", "CREATED", "DESCRIPTION", "GEO", "LAST-MODIFIED", "LOCATION", "ORGANIZER", "PRIORITY", "SEQUENCE", "STATUS", "SUMMARY", "TRANSP", "URL", "RECURRENCE-ID", "DTEND", "DURATION", "ATTACH", "ATTENDEE", "CATEGORIES", "COMMENT", "CONTACT", "EXDATE", "RSTATUS", "RELATED", "RESOURCES", "RDATE", "RRULE"};
     //Array that keeps track of number of times an item occurs
     int inArray[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     int isValid = 0;
@@ -323,6 +342,64 @@ ICalErrorCode validateEvent(void *toBeValidated) {
         if (isValid == 0) {
             return INV_EVENT;
         }
+        /*
+        Begin checking misc. Properties
+        */
+        //Check if DTEND is a valid datetime
+        if (strcmp(prop->propName, "DTEND") == 0) {
+            err = validateDateTime(prop->propDescr);
+            if (err != OK) {
+                return err;
+            }
+        }
+        //Check transparency valid properties
+        if (strcmp(prop->propName, "TRANSP") == 0) {
+            if ((strcmp(prop->propDescr, "TRANSPARENT") != 0) && (strcmp(prop->propDescr, "OPAQUE") != 0)) {
+                return INV_EVENT;
+            }
+        }
+
+        //Check CLASS property values
+        if (strcmp(prop->propName, "CLASS") == 0) {
+            if ((strcmp(prop->propDescr, "PUBLIC") != 0) && (strcmp(prop->propDescr, "PRIVATE") != 0) && (strcmp(prop->propDescr, "CONFIDENTIAL") != 0)) {
+                return INV_EVENT;
+            }
+        }
+        if (strcmp(prop->propName, "CREATED") == 0) {
+            err = validateDateTime(prop->propDescr);
+            if (err != OK) {
+                return err;
+            }
+        }
+        if (strcmp(prop->propName, "LAST-MODIFIED") == 0) {
+            err = validateDateTime(prop->propDescr);
+            if (err != OK) {
+                return err;
+            }
+        }
+        if (strcmp(prop->propName, "STATUS") == 0) {
+            if ((strcmp(prop->propDescr, "TENTATIVE") != 0) && (strcmp(prop->propDescr, "CONFIRMED") != 0) && (strcmp(prop->propDescr, "CANCELLED") != 0)) {
+                return INV_EVENT;
+            }
+        }
+        if (strcmp(prop->propName, "PRIORITY") == 0) {
+            //Check if the value is a string
+            err = isInt(prop->propDescr, INV_EVENT);
+            if (err != OK) {
+                return err;
+            }
+            //Check if it is between 0 and 9
+            if ((atoi(prop->propDescr) < 0) || (atoi(prop->propDescr) > 9)) {
+                return INV_EVENT;
+            }
+        }
+        //Increases by 1 every revision
+        if (strcmp(prop->propName, "SEQUENCE") == 0) {
+            err = isInt(prop->propDescr, INV_EVENT);
+            if (err != OK) {
+                return err;
+            }
+        }
   	}
 
     //Iterate through the list of Alarms and validate each one
@@ -338,11 +415,24 @@ ICalErrorCode validateEvent(void *toBeValidated) {
     return err;
 }
 
+ICalErrorCode isInt(char *word, ICalErrorCode err) {
+    int i;
+    for (i = 0; i < strlen(word); ++i) {
+        if ((word[i] > '9') || (word[i]< '0')) {
+            return err;
+        }
+    }
+    return OK;
+}
+
 ICalErrorCode validateAlarm(void *toBeValidated) {
     Alarm *alm = (Alarm*)toBeValidated;
     int durationCount = 0;
     int repeatCount = 0;
     int attachCount = 0;
+    ICalErrorCode err;
+    //check required Properties
+
 
     //Performs Alarm validation on list of properties
     ListIterator iter = createIterator(alm->properties);
@@ -354,8 +444,9 @@ ICalErrorCode validateAlarm(void *toBeValidated) {
         }
         else if (strcmp(prop->propName, "REPEAT") == 0) {
             //Repeat must be an integer value
-            if (atoi(prop->propDescr) == 0) {
-                return INV_ALARM;
+            err = isInt(prop->propDescr, INV_ALARM);
+            if (err != OK) {
+                return err;
             }
             repeatCount++;
         }
@@ -369,11 +460,10 @@ ICalErrorCode validateAlarm(void *toBeValidated) {
         if ((durationCount > 1) || (repeatCount > 1) || (attachCount > 1)) {
             return INV_ALARM;
         }
-        //If duration occurs, then repeat must occur. Vice versa
-        if (((durationCount == 1) && (repeatCount == 0)) || ((durationCount == 0) && (repeatCount == 1))) {
-            return INV_ALARM;
-        }
-
   	}
+    //If duration occurs, then repeat must occur. Vice versa
+    if (((durationCount == 1) && (repeatCount == 0)) || ((durationCount == 0) && (repeatCount == 1))) {
+        return INV_ALARM;
+    }
     return OK;
 }

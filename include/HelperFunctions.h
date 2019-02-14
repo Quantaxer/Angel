@@ -38,4 +38,8 @@ ICalErrorCode validateEvent(void *toBeValidated);
 
 ICalErrorCode validateAlarm(void *toBeValidated);
 
+ICalErrorCode validateDateTime(char *date);
+
+ICalErrorCode isInt(char *word, ICalErrorCode err);
+
 #endif
