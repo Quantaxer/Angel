@@ -408,7 +408,33 @@ ICalErrorCode validateCalendar(const Calendar* obj) {
     if (obj == NULL) {
         return INV_CAL;
     }
-    
+
+    //Check if version is valid
+    if (obj->version != 2.0) {
+        return INV_CAL;
+    }
+    //Check if prodID is valid
+    if ((strlen(obj->prodID) >= 1000) || (strlen(obj->prodID) < 1)) {
+        return INV_CAL;
+    }
+    //check if the lists are NULL
+    if ((obj->events == NULL) || (obj->properties == NULL)) {
+        return INV_CAL;
+    }
+
+    //Check if the events list is empty
+    if ((obj->events->head == NULL) && (obj->events->tail == NULL)) {
+        return INV_CAL;
+    }
+
+    if (obj->events == NULL) {
+      return INV_CAL;
+    }
+
+    if (obj->properties == NULL) {
+      return INV_CAL;
+    }
+
     //Iterate through the list of properties
     ListIterator iter = createIterator(obj->properties);
     void* elem;

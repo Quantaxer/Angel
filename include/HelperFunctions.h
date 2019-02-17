@@ -40,6 +40,10 @@ ICalErrorCode validateAlarm(void *toBeValidated);
 
 ICalErrorCode validateDateTime(char *date);
 
+ICalErrorCode validateDateTimeStruct(DateTime dt);
+
+int validateProperty(Property *prop);
+
 ICalErrorCode isInt(char *word, ICalErrorCode err);
 
 #endif

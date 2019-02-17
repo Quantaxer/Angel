@@ -300,6 +300,16 @@ ICalErrorCode validateDateTime(char *date) {
     return OK;
 }
 
+ICalErrorCode validateDateTimeStruct(DateTime dt) {
+    if ((strlen(dt.date) >= 9) || (strlen(dt.date) < 1)) {
+        return INV_EVENT;
+    }
+    if ((strlen(dt.time) >= 7) || (strlen(dt.time) < 1)) {
+        return INV_EVENT;
+    }
+    return OK;
+}
+
 ICalErrorCode validateEvent(void *toBeValidated) {
     Event *evt = (Event*)toBeValidated;
     //0-13 required only one, 14-23 anytime
@@ -310,6 +320,24 @@ ICalErrorCode validateEvent(void *toBeValidated) {
     int i = 0;
     ICalErrorCode err;
     err = OK;
+    //Perform struct validation
+    //Check if UID  is valid
+    if ((strlen(evt->UID) >= 1000) || (strlen(evt->UID) < 1)) {
+        return INV_EVENT;
+    }
+
+    //Validate DTSTART and DTSTAMP
+    if ((validateDateTimeStruct(evt->creationDateTime) != OK) || (validateDateTimeStruct(evt->startDateTime) != OK)) {
+        return INV_EVENT;
+    }
+
+    if (evt->properties == NULL) {
+        return INV_EVENT;
+    }
+
+    if (evt->alarms == NULL) {
+        return INV_EVENT;
+    }
 
     //perform event property validation
     ListIterator iter = createIterator(evt->properties);
@@ -317,6 +345,12 @@ ICalErrorCode validateEvent(void *toBeValidated) {
   	while((elem = nextElement(&iter)) != NULL){
         isValid = 0;
     		Property *prop = (Property*)elem;
+
+        //Validate property struct
+        if (validateProperty(prop) == 0) {
+            return INV_EVENT;
+        }
+
         for (i = 0; i < 27; ++i) {
             //Check if the property is valid
             if (strcmp(prop->propName, propList[i]) == 0) {
@@ -338,6 +372,10 @@ ICalErrorCode validateEvent(void *toBeValidated) {
         if ((inArray[14] == 1) && (inArray[15] == 1)) {
             return INV_EVENT;
         }
+        //Check if neither DTEND and DURATION occur (becaue DTSTART is mandatory, one of these must happen)
+        //if ((inArray[14] == 0) && (inArray[15] == 0)) {
+        //    return INV_EVENT;
+        //}
         //checks to see if the property is supposed to be in an event
         if (isValid == 0) {
             return INV_EVENT;
@@ -425,6 +463,16 @@ ICalErrorCode isInt(char *word, ICalErrorCode err) {
     return OK;
 }
 
+int validateProperty(Property *prop) {
+    if ((strlen(prop->propName) >= 200) || (strlen(prop->propName) < 1)) {
+        return 0;
+    }
+    if (strlen(prop->propDescr) < 0) {
+        return 0;
+    }
+    return 1;
+}
+
 ICalErrorCode validateAlarm(void *toBeValidated) {
     Alarm *alm = (Alarm*)toBeValidated;
     int durationCount = 0;
@@ -432,13 +480,31 @@ ICalErrorCode validateAlarm(void *toBeValidated) {
     int attachCount = 0;
     ICalErrorCode err;
     //check required Properties
-
-
+    //Alarm struct validation
+    //Validate action
+    if ((strlen(alm->action) >= 200) || (strlen(alm->action) < 1)) {
+        return INV_ALARM;
+    }
+    if (alm->trigger == NULL) {
+        return INV_ALARM;
+    }
+    if (strlen(alm->trigger) < 1) {
+      return INV_ALARM;
+    }
+    if (alm->properties == NULL) {
+        return INV_ALARM;
+    }
     //Performs Alarm validation on list of properties
     ListIterator iter = createIterator(alm->properties);
     void* elem;
   	while((elem = nextElement(&iter)) != NULL){
         Property *prop = (Property*)elem;
+
+        //Validate property struct
+        if (validateProperty(prop) == 0) {
+            return INV_ALARM;
+        }
+
         if (strcmp(prop->propName, "DURATION") == 0) {
             durationCount++;
         }
