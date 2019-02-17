@@ -301,13 +301,23 @@ ICalErrorCode validateDateTime(char *date) {
 }
 
 ICalErrorCode validateDateTimeStruct(DateTime dt) {
-    if ((strlen(dt.date) >= 9) || (strlen(dt.date) < 1)) {
+    if (strlen(dt.date) != 8) {
         return INV_EVENT;
     }
-    if ((strlen(dt.time) >= 7) || (strlen(dt.time) < 1)) {
+    if (strlen(dt.time) != 6) {
         return INV_EVENT;
     }
     return OK;
+}
+
+int validateProperty(Property *prop) {
+    if ((strlen(prop->propName) >= 200) || (strlen(prop->propName) < 1)) {
+        return 0;
+    }
+    if (strlen(prop->propDescr) < 1) {
+        return 0;
+    }
+    return 1;
 }
 
 ICalErrorCode validateEvent(void *toBeValidated) {
@@ -461,16 +471,6 @@ ICalErrorCode isInt(char *word, ICalErrorCode err) {
         }
     }
     return OK;
-}
-
-int validateProperty(Property *prop) {
-    if ((strlen(prop->propName) >= 200) || (strlen(prop->propName) < 1)) {
-        return 0;
-    }
-    if (strlen(prop->propDescr) < 0) {
-        return 0;
-    }
-    return 1;
 }
 
 ICalErrorCode validateAlarm(void *toBeValidated) {
