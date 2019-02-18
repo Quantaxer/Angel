@@ -82,11 +82,14 @@ void createDate(char *ptr, DateTime **dt) {
         (*dt)->UTC = true;
         time[strlen(time) - 1] = '\0';
     }
+    else {
+        (*dt)->UTC = false;
+    }
     strcpy((*dt)->time, time);
 }
 
 //Helper function to add a new event
-void addToEvent(char *first, char *ptr, Calendar **obj, Event **evt, int unfolded, ICalErrorCode *err) {
+void addToEvent(char *first, char *ptr, Calendar **obj, Event **evt, ICalErrorCode *err) {
     //Adds the UID property to the struct
     if (strcmp(first, "UID") == 0) {
         if (strcmp((*evt)->UID, "bananorama") == 0) {
@@ -159,7 +162,7 @@ void addToEvent(char *first, char *ptr, Calendar **obj, Event **evt, int unfolde
 }
 
 //Helper function to add a property to an alarm
-void addToAlarm(char *first, char *ptr, Event **evt, Alarm **alm, int unfolded) {
+void addToAlarm(char *first, char *ptr, Event **evt, Alarm **alm) {
     //Adds an action
     if (strcmp(first, "ACTION") == 0) {
         strcpy((*alm)->action, ptr);
@@ -183,7 +186,7 @@ void addToAlarm(char *first, char *ptr, Event **evt, Alarm **alm, int unfolded) 
 }
 
 //Helper function to add a property to the iCal file
-void addToCal(char *first, char *ptr, Calendar **obj, int unfolded, ICalErrorCode *err, int *isVersion) {
+void addToCal(char *first, char *ptr, Calendar **obj, ICalErrorCode *err, int *isVersion) {
     if (strcmp(first, "VERSION") == 0) {
         //Check if the version already exists
         if (*isVersion == 1) {

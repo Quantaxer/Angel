@@ -4,7 +4,7 @@
   CIS*2750
 */
 
-#include "CalendarParser_A2temp2.h"
+#include "CalendarParser.h"
 #include "HelperFunctions.h"
 
 ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
@@ -22,7 +22,6 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
     char *isICS;
     int isEvent = 0;
     int isAlarm = 0;
-    int isUnfolding = 0;
     int isVersion = 0;
     int idk = 0;
     //Check if filename is null
@@ -107,11 +106,9 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
 	                strcat(temp, x);
 	                strcpy(prevLine, temp);
 	                lineCount++;
-	                isUnfolding = 1;
 	            }
 	            //If the current line does NOT need unfolding, go here
 	            else {
-	                isUnfolding = 0;
 	                if (addCount == 0) {
 	                	if (strcmp(prevLine, "BEGIN:VCALENDAR") != 0) {
 					        deleteCalendar(*obj);
@@ -124,7 +121,6 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
 	                ptr = strtok(prevLine, ":;");
 	                first = ptr;
 	                ptr = strtok(NULL, "");
-	                printf("%s---%s\n", first, ptr);
 	                //Check to see if the property value is a string
 	                if (ptr == NULL) {
 	                    //If it is invalid, we need to determine what state the program is in.
@@ -160,13 +156,13 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
 		                    if (err == OK) {
 		                        //Determine what state the program is in
 		                        if ((isEvent == 0) && (isAlarm == 0)) {
-		                            addToCal(first, ptr, obj, isUnfolding, &err, &isVersion);
+		                            addToCal(first, ptr, obj, &err, &isVersion);
 		                        }
 		                        else if ((isEvent == 1) && (isAlarm == 0)) {
-		                            addToEvent(first, ptr, obj, &evt, isUnfolding, &err);
+		                            addToEvent(first, ptr, obj, &evt, &err);
 		                        }
 		                        else if ((isEvent == 1) && (isAlarm == 1)) {
-		                            addToAlarm(first, ptr, &evt, &alm, isUnfolding);
+		                            addToAlarm(first, ptr, &evt, &alm);
 		                        }
 		                    }
 	                	}
@@ -473,13 +469,63 @@ ICalErrorCode validateCalendar(const Calendar* obj) {
     ListIterator iter1 = createIterator(obj->events);
     void* elem1;
   	while((elem1 = nextElement(&iter1)) != NULL){
-    		err = validateEvent(elem1);
+    	err = validateEvent(elem1);
         //Check if an error occurred when iterating through the events
         if (err != OK) {
             return err;
         }
   	}
     return err;
+}
+
+char* dtToJSON(DateTime prop) {
+	char *json;
+	json = malloc(sizeof(char) * (32 + strlen(prop.date) + strlen(prop.time) + 6));
+	//{"date":"19540203","time":"123012","isUTC":true}
+	sprintf(json, "{\"date\":\"%s\",\"time\":\"%s\",\"isUTC\":", prop.date, prop.time);
+	if (prop.UTC == true) {
+		strcat(json, "true}");
+	}
+	else {
+		strcat(json, "false}");
+	}
+	strcat(json, "\0");
+
+	return json;
+}
+
+char* eventToJSON(const Event* event) {
+	char *json;
+
+	return json;
+}
+
+char* eventListToJSON(const List* eventList) {
+	char *json;
+
+	return json;
+}
+
+char* calendarToJSON(const Calendar* cal) {
+	char *json;
+
+	return json;
+}
+
+Calendar* JSONtoCalendar(const char* str) {
+	Calendar *cal = malloc(sizeof(Calendar));
+
+	return cal;
+}
+
+Event* JSONtoEvent(const char* str) {
+	Event *evt = malloc(sizeof(Event));
+
+	return evt;
+}
+
+void addEvent(Calendar* cal, Event* toBeAdded) {
+
 }
 
 void deleteEvent(void* toBeDeleted){
