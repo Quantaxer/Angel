@@ -89,7 +89,7 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
         if (line[0] != ';') {
             //line unfolding
             //Checks if it is not the first line, and if it has whitespace at the beginning
-            if ((lineCount > 0) && (line[0] == ' ')) {
+            if ((lineCount > 0) && ((line[0] == ' ') || (line[0] == '\t'))) {
                 //make temp string
                 char temp[strlen(line) + strlen(prev)];
                 //Append previous part to temp
@@ -243,6 +243,11 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
       deleteAlarm(alm);
       *obj = NULL;
       return INV_ALARM;
+    }
+    if ((*obj)->version == -1) {
+        deleteCalendar(*obj);
+        *obj = NULL;
+        return INV_CAL;
     }
     //Check if it is the correct version/ if it exists
     if ((*obj)->version != 2.0) {

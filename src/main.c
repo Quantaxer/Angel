@@ -2,7 +2,7 @@
 #include "CalendarParser_A2temp2.h"
 
 //Main loop for testing purposes ONLY, remove when submitting
-int main(void) {
+/*int main(void) {
     Calendar *cal;
     Event *evt;
     ICalErrorCode err;
@@ -49,12 +49,12 @@ int main(void) {
     }
 
     return 0;
-}
+}*/
 
 //Main loop for testing purposes ONLY, remove when submitting
-/*int main(void) {
+int main(void) {
     Calendar *cal;
-    ICalErrorCode err = createCalendar("src/testCalEvtPropAlm.ics", &cal);
+    ICalErrorCode err = createCalendar("src/megaCal1.ics", &cal);
     if (err == OK) {
       char *printString = printCalendar(cal);
       printf("%s\n", printString);
@@ -73,4 +73,4 @@ int main(void) {
       printf("%s\n", printError(err));
     }
     return 0;
-}*/
+}
