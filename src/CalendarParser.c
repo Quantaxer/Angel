@@ -10,14 +10,15 @@
 ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
     //Variables go here
     FILE *fp;
-    char *first, *ptr, prev[1000], otherPrev[1000], *x;
-    char line[1000];
+    char *first, *ptr, *x;
+    char line[10000];
+    char prevLine[10000];
     char *temp;
-    int wrapCount = 1;
     Event *evt = NULL;
     Alarm *alm = NULL;
     ICalErrorCode err = OK;
     int lineCount = 0;
+    int addCount = 0;
     char *isICS;
     int isEvent = 0;
     int isAlarm = 0;
@@ -71,7 +72,7 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
             return INV_FILE;
         }
         //Check if the line ends in /r/n
-        if ((line[strlen(line) - 1] != '\n') && (line[strlen(line) - 2] != '\r')) {
+        if ((line[strlen(line) - 1] != '\n') || (line[strlen(line) - 2] != '\r')) {
             fclose(fp);
             deleteCalendar(*obj);
             if (evt != NULL) {
@@ -83,140 +84,133 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
             *obj = NULL;
             return INV_FILE;
         }
-        //Strip /n from line for parsing purposes
+        //Strip \r\n from line for parsing purposes
         strtok(line, "\r\n");
         //Check for comments
         if (line[0] != ';') {
-            //line unfolding
-            //Checks if it is not the first line, and if it has whitespace at the beginning
-            if ((lineCount > 0) && ((line[0] == ' ') || (line[0] == '\t'))) {
-                //make temp string
-                char temp[strlen(line) + strlen(prev)];
-                //Append previous part to temp
-                strcpy(temp, prev);
-                //Remove first spaces
-                x = strtok(line, "");
-                memmove(x, x+wrapCount, strlen(x));
-                //Add to end of list
-                strcat(temp, x);
-                //set prev value
-                strcpy(prev, temp);
-                lineCount++;
-                isUnfolding = 1;
-                //Add value to appropriate struct
-                if ((isEvent == 0) && (isAlarm == 0)) {
-                    addToCal(otherPrev, prev, obj, isUnfolding, &err, &isVersion);
-                }
-                else if ((isEvent == 1) && (isAlarm == 0)) {
-                    addToEvent(otherPrev, prev, obj, &evt, isUnfolding, &err);
-                }
-                else if ((isEvent == 1) && (isAlarm == 1)) {
-                    addToAlarm(otherPrev, prev, &evt, &alm, isUnfolding);
-                }
-
-            }
-            //If the current line does NOT need unfolding, go here
-            else {
-                wrapCount = 1;
-                isUnfolding = 0;
-                //Seperate into first and last part of line, and add to calendar
-                ptr = strtok(line, ":;");
-                first = ptr;
-                ptr = strtok(NULL, "");
-
-                //Check to see if the property value is a string
-                if (ptr == NULL) {
-                    //If it is invalid, we need to determine what state the program is in.
-                    if ((isEvent == 0) && (isAlarm == 0)) {
-                        if (strcmp(first, "VERSION") == 0) {
-                            err = INV_VER;
-                        }
-                        else if (strcmp(first, "PRODID") == 0) {
-                            err = INV_PRODID;
-                        }
-                        else {
-                            err = INV_CAL;
-                        }
-                    }
-                    else if ((isEvent == 1) && (isAlarm == 0)) {
-                        if (strcmp(first, "DTSTART") == 0) {
-                            err = INV_DT;
-                        }
-                        else if (strcmp(first, "DTSTAMP") == 0) {
-                            err = INV_DT;
-                        }
-                        else {
-                            err = INV_EVENT;
-                        }
-                    }
-                    else if ((isEvent == 1) && (isAlarm == 1)) {
-                            err = INV_ALARM;
-                    }
-                }
-                else {
-                    strcpy(prev, ptr);
-                    strcpy(otherPrev, first);
-
-                    updateState(&isEvent, &isAlarm, first, ptr, &evt, obj, &alm, &err);
-                    if (err == OK) {
-                        //Determine what state the program is in
-                        if ((isEvent == 0) && (isAlarm == 0)) {
-                            addToCal(first, ptr, obj, isUnfolding, &err, &isVersion);
-                        }
-                        else if ((isEvent == 1) && (isAlarm == 0)) {
-                            addToEvent(first, ptr, obj, &evt, isUnfolding, &err);
-                        }
-                        else if ((isEvent == 1) && (isAlarm == 1)) {
-                            addToAlarm(first, ptr, &evt, &alm, isUnfolding);
-                        }
-                    }
-                }
-                //Do error checking if it occurs in one of the addition functions
-                if (err == OK) {
-                  //This is absolutely spaghetti code, this if statement needs to be here otherwise everything gets beaned
-                  if (idk == 0) {
-                      idk = 1;
-                  }
-                }
-                //This part handles freeing the memory based on the error thrown
-                else if (err == INV_DT) {
-                    fclose(fp);
-                    deleteEvent(evt);
-                    deleteCalendar(*obj);
-                    *obj = NULL;
-                    return err;
-                }
-                else if (err == INV_EVENT) {
-                    fclose(fp);
-                    deleteEvent(evt);
-                    deleteCalendar(*obj);
-                    *obj = NULL;
-                    return err;
-                }
-                else if (err == INV_ALARM) {
-                    fclose(fp);
-                    deleteEvent(evt);
-                    deleteAlarm(alm);
-                    deleteCalendar(*obj);
-                    *obj = NULL;
-                    return err;
-                }
-                else {
-                    fclose(fp);
-                    deleteCalendar(*obj);
-                    *obj = NULL;
-                    return err;
-                }
-            }
+        	if (lineCount == 0) {
+        		strcpy(prevLine, line);
+        	}
+        	//Determine what state the program is in
+        	if (lineCount > 0) {
+				//line unfolding
+	            //Checks if it is not the first line, and if it has whitespace at the beginning
+	            if ((line[0] == ' ') || (line[0] == '\t')) {
+	                //make temp string
+	                char temp[strlen(line) + strlen(prevLine)];
+	                //Append previous part to temp
+	                strcpy(temp, prevLine);
+	                //Remove first spaces
+	                x = strtok(line, "");
+	                memmove(x, x+1, strlen(x));
+	                //Add to end of list
+	                strcat(temp, x);
+	                strcpy(prevLine, temp);
+	                lineCount++;
+	                isUnfolding = 1;
+	            }
+	            //If the current line does NOT need unfolding, go here
+	            else {
+	                isUnfolding = 0;
+	                if (addCount == 0) {
+	                	if (strcmp(prevLine, "BEGIN:VCALENDAR") != 0) {
+					        deleteCalendar(*obj);
+					        *obj = NULL;
+					        return INV_CAL;
+					    }
+					    addCount++;
+	                }
+	                //Seperate into first and last part of line, and add to calendar
+	                ptr = strtok(prevLine, ":;");
+	                first = ptr;
+	                ptr = strtok(NULL, "");
+	                printf("%s---%s\n", first, ptr);
+	                //Check to see if the property value is a string
+	                if (ptr == NULL) {
+	                    //If it is invalid, we need to determine what state the program is in.
+	                    if ((isEvent == 0) && (isAlarm == 0)) {
+	                        if (strcmp(first, "VERSION") == 0) {
+	                            err = INV_VER;
+	                        }
+	                        else if (strcmp(first, "PRODID") == 0) {
+	                            err = INV_PRODID;
+	                        }
+	                        else {
+	                            err = INV_CAL;
+	                        }
+	                    }
+	                    else if ((isEvent == 1) && (isAlarm == 0)) {
+	                        if (strcmp(first, "DTSTART") == 0) {
+	                            err = INV_DT;
+	                        }
+	                        else if (strcmp(first, "DTSTAMP") == 0) {
+	                            err = INV_DT;
+	                        }
+	                        else {
+	                            err = INV_EVENT;
+	                        }
+	                    }
+	                    else if ((isEvent == 1) && (isAlarm == 1)) {
+	                            err = INV_ALARM;
+	                    }
+	                }
+	                else {
+	                	if (addCount != 0) {
+							updateState(&isEvent, &isAlarm, first, ptr, &evt, obj, &alm, &err);
+		                    if (err == OK) {
+		                        //Determine what state the program is in
+		                        if ((isEvent == 0) && (isAlarm == 0)) {
+		                            addToCal(first, ptr, obj, isUnfolding, &err, &isVersion);
+		                        }
+		                        else if ((isEvent == 1) && (isAlarm == 0)) {
+		                            addToEvent(first, ptr, obj, &evt, isUnfolding, &err);
+		                        }
+		                        else if ((isEvent == 1) && (isAlarm == 1)) {
+		                            addToAlarm(first, ptr, &evt, &alm, isUnfolding);
+		                        }
+		                    }
+	                	}
+	                }
+	                //Do error checking if it occurs in one of the addition functions
+	                if (err == OK) {
+	                  //This is absolutely spaghetti code, this if statement needs to be here otherwise everything gets beaned
+	                  if (idk == 0) {
+	                      idk = 1;
+	                  }
+	                }
+	                //This part handles freeing the memory based on the error thrown
+	                else if (err == INV_DT) {
+	                    fclose(fp);
+	                    deleteEvent(evt);
+	                    deleteCalendar(*obj);
+	                    *obj = NULL;
+	                    return err;
+	                }
+	                else if (err == INV_EVENT) {
+	                    fclose(fp);
+	                    deleteEvent(evt);
+	                    deleteCalendar(*obj);
+	                    *obj = NULL;
+	                    return err;
+	                }
+	                else if (err == INV_ALARM) {
+	                    fclose(fp);
+	                    deleteEvent(evt);
+	                    deleteAlarm(alm);
+	                    deleteCalendar(*obj);
+	                    *obj = NULL;
+	                    return err;
+	                }
+	                else {
+	                    fclose(fp);
+	                    deleteCalendar(*obj);
+	                    *obj = NULL;
+	                    return err;
+	                }
+	                strcpy(prevLine, line);
+	            }
+	        }
         }
-        //File format error checking
-        if ((lineCount == 0) && ((strcmp(first, "BEGIN") != 0) || (strcmp(ptr, "VCALENDAR") != 0))) {
-            fclose(fp);
-            deleteCalendar(*obj);
-            *obj = NULL;
-            return INV_CAL;
-        }
-
         //Increment line counters
         lineCount++;
     }
@@ -225,7 +219,7 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
 
     //Error checking occurs here
     //Checks if last line is correct
-    if ((strcmp(first, "END") != 0) || (strcmp(ptr, "VCALENDAR") != 0)) {
+    if (strcmp(line, "END:VCALENDAR") != 0) {
         deleteCalendar(*obj);
         *obj = NULL;
         return INV_CAL;
@@ -283,6 +277,9 @@ void deleteCalendar(Calendar* obj) {
 }
 
 char* printCalendar(const Calendar* obj) {
+	if (obj == NULL) {
+		return "";
+	}
     char *str;
     char version[4];
     char *temp = toString(obj->properties);

@@ -153,11 +153,6 @@ void addToEvent(char *first, char *ptr, Calendar **obj, Event **evt, int unfolde
             strcpy(prop->propName, first);
             strcpy(prop->propDescr, ptr);
             //ADD TO EVENT LIST
-            if (unfolded == 1) {
-                Property *toDelete = deleteDataFromList((*evt)->properties , getFromBack((*evt)->properties));
-                free(toDelete);
-                //memory leak?
-            }
             insertBack((*evt)->properties, prop);
         }
     }
@@ -182,11 +177,6 @@ void addToAlarm(char *first, char *ptr, Event **evt, Alarm **alm, int unfolded) 
           strcpy(prop->propName, first);
           strcpy(prop->propDescr, ptr);
           //ADD TO ALARM LIST
-          if (unfolded == 1) {
-              Property *toDelete = deleteDataFromList((*alm)->properties , getFromBack((*alm)->properties));
-              free(toDelete);
-              //memory leak?
-          }
           insertBack((*alm)->properties, prop);
         }
     }
@@ -207,16 +197,11 @@ void addToCal(char *first, char *ptr, Calendar **obj, int unfolded, ICalErrorCod
     //Adds the PRODID
     else if (strcmp(first, "PRODID") == 0) {
         //Make sure that error checking doesn't occur if the line is being unfolded
-        if (unfolded == 1) {
-            strcat((*obj)->prodID, ptr);
+        if (strlen((*obj)->prodID) != 0) {
+            *err = DUP_PRODID;
         }
         else {
-            if (strlen((*obj)->prodID) != 0) {
-                *err = DUP_PRODID;
-            }
-            else {
-                strcpy((*obj)->prodID, ptr);
-            }
+            strcpy((*obj)->prodID, ptr);
         }
     }
     //Adds anything that isn't begin or end as a property
@@ -226,11 +211,6 @@ void addToCal(char *first, char *ptr, Calendar **obj, int unfolded, ICalErrorCod
             strcpy(prop->propName, first);
             strcpy(prop->propDescr, ptr);
             //ADD TO iCAL LIST
-            if (unfolded == 1) {
-                Property *toDelete = deleteDataFromList((*obj)->properties , getFromBack((*obj)->properties));
-                free(toDelete);
-                //memory leak?
-            }
             insertBack((*obj)->properties, prop);
         }
     }
