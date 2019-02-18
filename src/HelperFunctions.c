@@ -314,6 +314,9 @@ ICalErrorCode validateEvent(void *toBeValidated) {
     ICalErrorCode err;
     err = OK;
     //Perform struct validation
+    char *j = eventToJSON(evt);
+    printf("%s\n", j);
+    free(j);
     //Check if UID  is valid
     if ((strlen(evt->UID) >= 1000) || (strlen(evt->UID) < 1)) {
         return INV_EVENT;
@@ -335,9 +338,9 @@ ICalErrorCode validateEvent(void *toBeValidated) {
     //perform event property validation
     ListIterator iter = createIterator(evt->properties);
     void* elem;
-  	while((elem = nextElement(&iter)) != NULL){
+    while((elem = nextElement(&iter)) != NULL){
         isValid = 0;
-    		Property *prop = (Property*)elem;
+        Property *prop = (Property*)elem;
 
         //Validate property struct
         if (validateProperty(prop) == 0) {
@@ -431,7 +434,7 @@ ICalErrorCode validateEvent(void *toBeValidated) {
                 return err;
             }
         }
-  	}
+    }
 
     //Iterate through the list of Alarms and validate each one
     ListIterator iter1 = createIterator(evt->alarms);
@@ -480,7 +483,7 @@ ICalErrorCode validateAlarm(void *toBeValidated) {
     //Performs Alarm validation on list of properties
     ListIterator iter = createIterator(alm->properties);
     void* elem;
-  	while((elem = nextElement(&iter)) != NULL){
+    while((elem = nextElement(&iter)) != NULL){
         Property *prop = (Property*)elem;
 
         //Validate property struct
@@ -509,7 +512,7 @@ ICalErrorCode validateAlarm(void *toBeValidated) {
         if ((durationCount > 1) || (repeatCount > 1) || (attachCount > 1)) {
             return INV_ALARM;
         }
-  	}
+    }
     //If duration occurs, then repeat must occur. Vice versa
     if (((durationCount == 1) && (repeatCount == 0)) || ((durationCount == 0) && (repeatCount == 1))) {
         return INV_ALARM;

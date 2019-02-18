@@ -480,23 +480,61 @@ ICalErrorCode validateCalendar(const Calendar* obj) {
 
 char* dtToJSON(DateTime prop) {
 	char *json;
+	//Allocate memory and format the string
 	json = malloc(sizeof(char) * (32 + strlen(prop.date) + strlen(prop.time) + 6));
-	//{"date":"19540203","time":"123012","isUTC":true}
 	sprintf(json, "{\"date\":\"%s\",\"time\":\"%s\",\"isUTC\":", prop.date, prop.time);
+	//Check what the value of UTC is and append that value to the string
 	if (prop.UTC == true) {
 		strcat(json, "true}");
 	}
 	else {
 		strcat(json, "false}");
 	}
-	strcat(json, "\0");
 
 	return json;
 }
 
 char* eventToJSON(const Event* event) {
 	char *json;
+	char *jsonStart = dtToJSON(event->startDateTime);
+	int propCount = 0;
+	int alarmCount = 0;
+	char *summaryString;
+	int didSummary = 0;
+	
+	//Iterate through list of properties to count how many exist
+	ListIterator iter = createIterator(event->properties);
+    void* elem;
+  	while((elem = nextElement(&iter)) != NULL){
+  		Property *prop = (Property*)elem;
+  		//Check if summary exists in the list
+  		if (strcmp(prop->propName, "SUMMARY") == 0) {
+  			//Create a temp string for formatting the summary, then append to the real string
+  			summaryString = malloc(sizeof(char) * (3 + strlen(prop->propDescr)));
+  			sprintf(summaryString, "\"%s\"", prop->propDescr);
+  			didSummary = 1;
+  		}
+  		propCount++;
+  	}
+  	//If the summary DNE append 2 ""
+  	if (didSummary == 0) {
+  		summaryString = "\"\"";
+  	}
 
+  	//Iterate through list of alarms to count how many exist
+  	ListIterator iter2 = createIterator(event->alarms);
+    void* elem2;
+  	while((elem2 = nextElement(&iter2)) != NULL){
+  		alarmCount++;
+  	}
+
+  	//Allocate memory and format the string
+	json = malloc(sizeof(char) * (50 + strlen(jsonStart) + sizeof(propCount) + sizeof(alarmCount) + strlen(summaryString)));
+	sprintf(json, "{\"startDT\":%s,\"numProps\":%d,\"numAlarms\":%d,\"summary\":%s}", jsonStart, propCount, alarmCount, summaryString);
+	free(jsonStart);
+    if (didSummary == 1) {
+        free(summaryString);
+    }
 	return json;
 }
 
