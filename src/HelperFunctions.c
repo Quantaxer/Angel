@@ -314,9 +314,6 @@ ICalErrorCode validateEvent(void *toBeValidated) {
     ICalErrorCode err;
     err = OK;
     //Perform struct validation
-    char *j = eventToJSON(evt);
-    printf("%s\n", j);
-    free(j);
     //Check if UID  is valid
     if ((strlen(evt->UID) >= 1000) || (strlen(evt->UID) < 1)) {
         return INV_EVENT;

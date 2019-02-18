@@ -54,12 +54,15 @@
 //Main loop for testing purposes ONLY, remove when submitting
 int main(void) {
     Calendar *cal;
-    ICalErrorCode err = createCalendar("src/testCalEvtPropAlm.ics", &cal);
+    ICalErrorCode err = createCalendar("src/testCalEvtPropAlm3.ics", &cal);
     if (err == OK) {
       char *printString = printCalendar(cal);
       printf("%s\n", printString);
       free(printString);
       writeCalendar("src/testWrite.ics", cal);
+      char *j = calendarToJSON(cal);
+      printf("%s\n", j);
+      free(j);
       err = validateCalendar(cal);
       if (err != 0) {
           printf("Validated: %s\n", printError(err));
