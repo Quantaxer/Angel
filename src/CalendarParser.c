@@ -545,10 +545,6 @@ char* eventToJSON(const Event* event) {
 }
 
 char* eventListToJSON(const List* eventList) {
-    //Fix this from giving error
-    //w
-    //t
-    //f
     //Check for NULL
     if (eventList == NULL) {
         return "[]";
@@ -559,7 +555,7 @@ char* eventListToJSON(const List* eventList) {
     }
 
     char *json = malloc(sizeof(char) * (2));
-    ListIterator iter = createIterator(eventList);
+    ListIterator iter = createIterator((List*)eventList);
     void* elem;
     strcpy(json, "[");
     //Iterate through list of events
