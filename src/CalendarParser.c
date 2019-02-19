@@ -605,14 +605,200 @@ char* calendarToJSON(const Calendar* cal) {
 }
 
 Calendar* JSONtoCalendar(const char* str) {
+    if (str == NULL) {
+        return NULL;
+    }
+    char strCopy[strlen(str)];
+    int i;
+    int isReading = 0;
+    int j = 0;
+    int isComma = 0;
+    char prodIDString[strlen(str)];
+    char versionString[strlen(str)];
+    char temp[strlen(str)];
+    char temp2[strlen(str)];
+    char *token = NULL;
+    if (str[strlen(str) - 1] != '}') {
+        return NULL;
+    }
+    //Create a copy of the string to split into 2 parts for version and prodID
+    for (i = 0; i < strlen(str); ++i) {
+        strCopy[i] = str[i];
+        if (str[i] == ',') {
+            isComma = 1;
+        }
+    }
+    strCopy[i] = '\0';
+    //Version
+    token = strtok(strCopy, ",");
+    if (isComma == 0) {
+        return NULL;
+    }
+
+    char* first = token;
+
+    //Check beginning for proper format
+    for (i = 0; i < strlen(first); ++i) {
+        if (first[i] == ':') {
+            break;
+        }
+        temp[j] = first[i];
+        j++;
+    }
+    temp[j] = '\0';
+    
+    if (strcmp(temp, "{\"version\"") != 0) {
+        return NULL;
+    }
+
+    j = 0;
+
+    for (i = i + 1; i < strlen(first); ++i) {
+        versionString[j] = first[i];
+        j++;
+    }
+    versionString[j] = '\0';
+    if (atoi(versionString) == 0) {
+        return NULL;
+    }
+    j = 0;
+    //prodID
+    token = strtok(NULL, ",");
+    char *second = token;
+    //Check beginning for proper format
+    for (i = 0; i < strlen(second); ++i) {
+        if (second[i] == ':') {
+            break;
+        }
+        temp2[j] = second[i];
+        j++;
+    }
+    temp2[j] = '\0';
+    
+    if (strcmp(temp2, "\"prodID\"") != 0) {
+        return NULL;
+    }
+    j = 0;
+    isReading = 0;
+    for (i = 0; i < strlen(second); ++i) {
+        //Once it finds a : begin reading into new string
+        if (second[i] == ':') {
+            //Check if string begins with quotes for format
+            if (second[i + 1] != '\"') {
+                return NULL;
+            }
+            isReading = 1;
+            continue;
+        }
+        //Find when the string ends
+        if (isReading == 1) {
+            if (second[i] == '}') {
+                break;
+            }
+            prodIDString[j] = second[i];
+            j++;
+        }
+    }
+
+    //Error check string
+    if (strlen(prodIDString) == 0) {
+        return NULL;
+    }
+
+    //Check if string ends in end quotes for format
+    if (prodIDString[j - 1] != '\"') {
+        return NULL;
+    }
+    //Remove the beginning and end quotes
+    prodIDString[j - 1] = '\0';
+    memmove(prodIDString, prodIDString + 1, strlen(prodIDString));
+    //Error check string
+    if (strlen(prodIDString) == 0) {
+        return NULL;
+    }
+    if (atoi(versionString) == 0) {
+        return NULL;
+    }
 	Calendar *cal = malloc(sizeof(Calendar));
+    cal->version = atoi(versionString);
+    strcpy(cal->prodID, prodIDString);
+    //cal->properties = initializeList((*printProperty), (*deleteProperty), (*compareProperties));
+    //cal->events = initializeList((*printEvent), (*deleteEvent), (*compareEvents));
 
 	return cal;
 }
 
 Event* JSONtoEvent(const char* str) {
-	Event *evt = malloc(sizeof(Event));
+    if (str == NULL) {
+        return NULL;
+    }
+    int i;
+    int j = 0;
+    int isReading = 0;
+    char temp[strlen(str)];
 
+    //Check if string has braces closing it
+    if ((str[0] != '{') || (str[strlen(str) - 1] != '}')) {
+        return NULL;
+    }
+
+    //Create a temp string to check format of beginning
+    for (i = 0; i < strlen(str); ++i) {
+        if (str[i] == ':') {
+            break;
+        }
+        temp[j] = str[i];
+        j++;
+    }
+    temp[j] = '\0';
+    if (strcmp(temp, "{\"UID\"") != 0) {
+        return NULL;
+    }
+
+    //Create temp string for UID
+    j = 0;
+    char newStr[strlen(str)];
+    strcpy(newStr, "");
+    //Iterate through string
+    for (i = 0; i < strlen(str); ++i) {
+        //Once it finds a : begin reading into new string
+        if (str[i] == ':') {
+            //Check if string begins with quotes for format
+            if (str[i + 1] != '\"') {
+                return NULL;
+            }
+            isReading = 1;
+            continue;
+        }
+        //Find when the string ends
+        if (isReading == 1) {
+            if (str[i] == '}') {
+                break;
+            }
+            newStr[j] = str[i];
+            j++;
+        }
+    }
+    //Error check string
+    if (strlen(newStr) == 0) {
+        return NULL;
+    }
+
+    //Check if string ends in end quotes for format
+    if (newStr[j - 1] != '\"') {
+        return NULL;
+    }
+    //Remove the beginning and end quotes
+    newStr[j - 1] = '\0';
+    memmove(newStr, newStr + 1, strlen(newStr));
+    //Error check string
+    if (strlen(newStr) == 0) {
+        return NULL;
+    }
+    Event *evt = malloc(sizeof(Event));
+    strcpy(evt->UID, newStr);
+    //evt->properties = initializeList((*printProperty), (*deleteProperty), (*compareProperties));
+    //evt->alarms = initializeList((*printAlarm), (*deleteAlarm), (*compareAlarms));
 	return evt;
 }
 
