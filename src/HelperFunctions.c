@@ -362,10 +362,10 @@ ICalErrorCode validateEvent(void *toBeValidated) {
             }
         }
         //Check if both DTEND and DURATION occur
-        if ((inArray[14] == 1) && (inArray[15] == 1)) {
+        if ((inArray[14] > 0) && (inArray[15] > 0)) {
             return INV_EVENT;
         }
-        //Check if neither DTEND and DURATION occur (becaue DTSTART is mandatory, one of these must happen)
+        //Check if neither DTEND and DURATION occur (because DTSTART is mandatory, one of these must happen)
         //if ((inArray[14] == 0) && (inArray[15] == 0)) {
         //    return INV_EVENT;
         //}
@@ -377,7 +377,7 @@ ICalErrorCode validateEvent(void *toBeValidated) {
         Begin checking misc. Properties
         */
         //Check if DTEND is a valid datetime
-        if (strcmp(prop->propName, "DTEND") == 0) {
+        /*if (strcmp(prop->propName, "DTEND") == 0) {
             err = validateDateTime(prop->propDescr);
             if (err != OK) {
                 return err;
@@ -430,7 +430,7 @@ ICalErrorCode validateEvent(void *toBeValidated) {
             if (err != OK) {
                 return err;
             }
-        }
+        }*/
     }
 
     //Iterate through the list of Alarms and validate each one

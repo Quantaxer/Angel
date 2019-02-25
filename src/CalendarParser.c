@@ -367,7 +367,7 @@ ICalErrorCode writeCalendar(char* fileName, const Calendar* obj) {
 
     //Allocate memory for prodID string, and print to file
     tempString2 = malloc(sizeof(char) * (10 + strlen(obj->prodID)));
-    strcpy(tempString2, "ProdID:");
+    strcpy(tempString2, "PRODID:");
     strcat(tempString2, obj->prodID);
     fputs(tempString2, fp);
     free(tempString2);
@@ -382,7 +382,7 @@ ICalErrorCode writeCalendar(char* fileName, const Calendar* obj) {
     void* elem;
   	while((elem = nextElement(&iter)) != NULL){
         fputs("BEGIN:VEVENT\r\n", fp);
-    		char* currDescr = serializeEvent(elem, &fp);
+    	char* currDescr = serializeEvent(elem, &fp);
         fputs(currDescr, fp);
         free(currDescr);
         fputs("END:VEVENT\r\n", fp);
@@ -425,14 +425,6 @@ ICalErrorCode validateCalendar(const Calendar* obj) {
         return INV_CAL;
     }
 
-    if (obj->events == NULL) {
-      return INV_CAL;
-    }
-
-    if (obj->properties == NULL) {
-      return INV_CAL;
-    }
-
     //Iterate through the list of properties
     ListIterator iter = createIterator(obj->properties);
     void* elem;
@@ -453,9 +445,9 @@ ICalErrorCode validateCalendar(const Calendar* obj) {
         if (strcmp(prop->propName, "CALSCALE") == 0) {
             calScaleCount++;
             //Calscale can only ever be gregorian in this version of an iCal file
-            if (strcmp(prop->propDescr, "GREGORIAN") != 0) {
+            /*if (strcmp(prop->propDescr, "GREGORIAN") != 0) {
                 return INV_CAL;
-            }
+            }*/
         }
         else if (strcmp(prop->propName, "METHOD") == 0) {
             methodCount++;
@@ -465,9 +457,10 @@ ICalErrorCode validateCalendar(const Calendar* obj) {
             return INV_CAL;
         }
   	}
-    char *j = eventListToJSON(obj->events);
-    printf("%s\n", j);
-    free(j);
+    //I'm not too sure about this one, I'm going off of the assunmption that it is required from reading the assignment description
+    /*if (methodCount == 0) {
+        return INV_CAL;
+    }*/
     //Iterate through the list of events and validate that each event is valid
     ListIterator iter1 = createIterator(obj->events);
     void* elem1;
@@ -718,8 +711,8 @@ Calendar* JSONtoCalendar(const char* str) {
 	Calendar *cal = malloc(sizeof(Calendar));
     cal->version = atoi(versionString);
     strcpy(cal->prodID, prodIDString);
-    //cal->properties = initializeList((*printProperty), (*deleteProperty), (*compareProperties));
-    //cal->events = initializeList((*printEvent), (*deleteEvent), (*compareEvents));
+    cal->properties = initializeList((*printProperty), (*deleteProperty), (*compareProperties));
+    cal->events = initializeList((*printEvent), (*deleteEvent), (*compareEvents));
 
 	return cal;
 }
@@ -793,8 +786,8 @@ Event* JSONtoEvent(const char* str) {
     }
     Event *evt = malloc(sizeof(Event));
     strcpy(evt->UID, newStr);
-    //evt->properties = initializeList((*printProperty), (*deleteProperty), (*compareProperties));
-    //evt->alarms = initializeList((*printAlarm), (*deleteAlarm), (*compareAlarms));
+    evt->properties = initializeList((*printProperty), (*deleteProperty), (*compareProperties));
+    evt->alarms = initializeList((*printAlarm), (*deleteAlarm), (*compareAlarms));
 	return evt;
 }
 

@@ -8,6 +8,7 @@
     ICalErrorCode err;
     Alarm *alm;
     Property *prop;
+    Property *prop3;
     cal = malloc(sizeof(Calendar));
     //Create a valid calendar
     cal->version = 2.0;
@@ -26,15 +27,21 @@
     evt->alarms = initializeList((*printAlarm), (*deleteAlarm), (*compareAlarms));
 
     //Remeber to allocate size of flexible array
-    prop = malloc(sizeof(Property) + 2);
-    strcpy(prop->propName, "DESCRIPTION");
-    strcpy(prop->propDescr, "s");
-    insertBack(evt->properties, prop);
 
     alm = malloc(sizeof(Alarm));
     strcpy(alm->action, "hi");
     alm->trigger = "bye";
     alm->properties = initializeList((*printProperty), (*deleteProperty), (*compareProperties));
+
+    prop = malloc(sizeof(Property) + 2);
+    strcpy(prop->propName, "DURATION");
+    strcpy(prop->propDescr, "s");
+    insertBack(alm->properties, prop);
+
+    prop3 = malloc(sizeof(Property) + 2);
+    strcpy(prop3->propName, "REPEAT");
+    strcpy(prop3->propDescr, "a");
+    insertBack(alm->properties, prop3);
 
     insertBack(evt->alarms, alm);
     insertBack(cal->events, evt);
@@ -46,15 +53,12 @@
     }
     else {
         printf("Validated: %s\n", "OK");
-    }
-
-    return 0;
-}*/
+    }*/
 
 //Main loop for testing purposes ONLY, remove when submitting
 int main(void) {
     Calendar *cal;
-    ICalErrorCode err = createCalendar("src/testCalEvtPropAlm3.ics", &cal);
+    ICalErrorCode err = createCalendar("src/mLinePropTab1.ics", &cal);
     if (err == OK) {
       char *printString = printCalendar(cal);
       printf("%s\n", printString);
@@ -75,5 +79,17 @@ int main(void) {
     else {
       printf("%s\n", printError(err));
     }
+    /*char *str = "{\"version\":245,\"prodID\":\"-//hacksw/handcal//NONSGML v1.0//EN\"}";
+    char *str2 = "{\"UID\":\"1234\"}";
+    cal = JSONtoCalendar(str);
+    Event *evt = JSONtoEvent(str2);
+    if (cal != NULL) {
+        printf("%d, %s\n", (int)cal->version, cal->prodID);
+    }
+    if (evt != NULL) {
+        printf("%s\n", evt->UID);
+    }
+    free(cal);
+    free(evt);*/
     return 0;
 }
