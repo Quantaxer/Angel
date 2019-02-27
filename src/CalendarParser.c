@@ -240,11 +240,11 @@ ICalErrorCode createCalendar(char* fileName, Calendar** obj) {
         return INV_CAL;
     }
     //Check if it is the correct version/ if it exists
-    if ((*obj)->version != 2.0) {
+    /*if ((*obj)->version != 2.0) {
         deleteCalendar(*obj);
         *obj = NULL;
         return INV_VER;
-    }
+    }*/
     //Check if prodID exists
     if (strlen((*obj)->prodID) == 0) {
         deleteCalendar(*obj);
@@ -408,7 +408,7 @@ ICalErrorCode validateCalendar(const Calendar* obj) {
     }
 
     //Check if version is valid
-    if (obj->version != 2.0) {
+    if (obj->version == -1) {
         return INV_CAL;
     }
     //Check if prodID is valid
@@ -430,6 +430,9 @@ ICalErrorCode validateCalendar(const Calendar* obj) {
     void* elem;
   	while((elem = nextElement(&iter)) != NULL){
     	Property *prop = (Property*)elem;
+        if (validateProperty(prop) == 0) {
+            return INV_CAL;
+        }
         isIn = 0;
         //Iterate through list of properties and determine if they should be in the list
         for (i = 0; i < 2; ++i) {

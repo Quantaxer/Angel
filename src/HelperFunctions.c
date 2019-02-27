@@ -294,6 +294,10 @@ ICalErrorCode validateDateTimeStruct(DateTime dt) {
 }
 
 int validateProperty(Property *prop) {
+    if (prop == NULL) {
+        return 0;
+    }
+
     if ((strlen(prop->propName) >= 200) || (strlen(prop->propName) < 1)) {
         return 0;
     }
@@ -475,6 +479,9 @@ ICalErrorCode validateAlarm(void *toBeValidated) {
       return INV_ALARM;
     }
     if (alm->properties == NULL) {
+        return INV_ALARM;
+    }
+    if (strcmp(alm->action, "AUDIO") != 0) {
         return INV_ALARM;
     }
     //Performs Alarm validation on list of properties
